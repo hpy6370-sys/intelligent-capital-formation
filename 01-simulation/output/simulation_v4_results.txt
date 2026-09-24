@@ -1,0 +1,622 @@
+Capstone ICF Simulation v4 -- calibrated with real project data
+DAICO vs Reverse Dutch Auction | Monte Carlo N=50
+
+Real-data parameters extracted from the initial 50-project dataset (merged into 03-dataset/dataset_82_projects.md):
+
+  DAICO avg contribution (The Abyss: $15,362,418 / 4,897 contributors) = $3,137.11
+  RDA avg contribution by project (raised / participants):
+    Casper Network       $970.59
+    Mina Protocol        $462.96
+    Flow (Dapper Labs)   $1,440.00
+    Solana               $3,955.06
+  RDA price decline ratio (Algorand $10 -> $2.40 clearing, 4,000 rounds) = 24.00% of start price
+    (Solana's $0.22 flat clearing price is not on a comparable token scale, so it is used only as a sanity check, not folded into the ratio.)
+
+  small_project profile: n_agents=20 (Solana's 445 bidders / 100, floored at 20), capital_scale=1182.0x v3 baseline
+  large_project profile: n_agents=340 (median of Casper/Mina/Flow participants / 100), capital_scale=323.5x v3 baseline
+
+  NOTE: DAICO tap_rate (0.02 small / 0.008 large) is a reasoned assumption, not a dataset figure - no project reports an explicit tap-rate %.
+
+############################################################
+# v3 defaults (uncalibrated, for reference)
+############################################################
+
+============================================================
+  Baseline (no behavioral effects)
+============================================================
+  DAICO:
+    Pool remaining:    46.15
+    Released:          29.86
+    Release efficiency:33.2%
+    Destroyed by vote: 24%
+    [D1] Gini coefficient:  0.487
+    [D1] Top 10% share:     39.0%
+    [D2] Whale dominance:   40.5%
+    [D3] Capital retention: 38.6%
+    [D3] ROI variance:      0.0000
+  RDA:
+    Total raised:      133.63
+    Tokens sold:       27.71
+    Participants:      24.4
+    [D1] Gini coefficient:  0.516
+    [D1] Top 10% share:     36.4%
+    [D2] Price volatility:  0.0311
+    [D2] Whale dominance:   38.8%
+    [D2] Timing corr:       -0.011
+    [D3] ROI variance:      0.0731
+  [D1]=Allocation Efficiency  [D2]=Manipulation Resistance  [D3]=Incentive Alignment
+
+============================================================
+  FOMO = 0.3
+============================================================
+  DAICO:
+    Pool remaining:    45.17
+    Released:          35.77
+    Release efficiency:40.1%
+    Destroyed by vote: 14%
+    [D1] Gini coefficient:  0.487
+    [D1] Top 10% share:     39.2%
+    [D2] Whale dominance:   40.8%
+    [D3] Capital retention: 43.3%
+    [D3] ROI variance:      0.0000
+  RDA:
+    Total raised:      143.82
+    Tokens sold:       25.31
+    Participants:      30.0
+    [D1] Gini coefficient:  0.414
+    [D1] Top 10% share:     29.6%
+    [D2] Price volatility:  0.0311
+    [D2] Whale dominance:   30.9%
+    [D2] Timing corr:       -0.002
+    [D3] ROI variance:      0.0865
+  [D1]=Allocation Efficiency  [D2]=Manipulation Resistance  [D3]=Incentive Alignment
+
+============================================================
+  FOMO = 0.5
+============================================================
+  DAICO:
+    Pool remaining:    42.82
+    Released:          41.42
+    Release efficiency:47.1%
+    Destroyed by vote: 4%
+    [D1] Gini coefficient:  0.488
+    [D1] Top 10% share:     39.4%
+    [D2] Whale dominance:   40.9%
+    [D3] Capital retention: 48.2%
+    [D3] ROI variance:      0.0000
+  RDA:
+    Total raised:      143.90
+    Tokens sold:       24.31
+    Participants:      30.0
+    [D1] Gini coefficient:  0.407
+    [D1] Top 10% share:     28.4%
+    [D2] Price volatility:  0.0311
+    [D2] Whale dominance:   29.4%
+    [D2] Timing corr:       0.023
+    [D3] ROI variance:      0.0890
+  [D1]=Allocation Efficiency  [D2]=Manipulation Resistance  [D3]=Incentive Alignment
+
+============================================================
+  FOMO = 0.7
+============================================================
+  DAICO:
+    Pool remaining:    42.37
+    Released:          45.05
+    Release efficiency:48.3%
+    Destroyed by vote: 10%
+    [D1] Gini coefficient:  0.489
+    [D1] Top 10% share:     39.6%
+    [D2] Whale dominance:   41.1%
+    [D3] Capital retention: 50.6%
+    [D3] ROI variance:      0.0000
+  RDA:
+    Total raised:      143.94
+    Tokens sold:       23.77
+    Participants:      30.0
+    [D1] Gini coefficient:  0.401
+    [D1] Top 10% share:     27.6%
+    [D2] Price volatility:  0.0311
+    [D2] Whale dominance:   28.4%
+    [D2] Timing corr:       0.038
+    [D3] ROI variance:      0.0904
+  [D1]=Allocation Efficiency  [D2]=Manipulation Resistance  [D3]=Incentive Alignment
+
+============================================================
+  FOMO=0.5 + Herding=0.3
+============================================================
+  DAICO:
+    Pool remaining:    39.02
+    Released:          46.93
+    Release efficiency:49.8%
+    Destroyed by vote: 22%
+    [D1] Gini coefficient:  0.487
+    [D1] Top 10% share:     39.2%
+    [D2] Whale dominance:   40.7%
+    [D3] Capital retention: 54.2%
+    [D3] ROI variance:      0.0000
+  RDA:
+    Total raised:      143.90
+    Tokens sold:       24.25
+    Participants:      30.0
+    [D1] Gini coefficient:  0.407
+    [D1] Top 10% share:     28.3%
+    [D2] Price volatility:  0.0311
+    [D2] Whale dominance:   29.3%
+    [D2] Timing corr:       0.020
+    [D3] ROI variance:      0.0911
+  [D1]=Allocation Efficiency  [D2]=Manipulation Resistance  [D3]=Incentive Alignment
+
+============================================================
+  FOMO=0.5 + Herding=0.6
+============================================================
+  DAICO:
+    Pool remaining:    29.53
+    Released:          58.11
+    Release efficiency:61.3%
+    Destroyed by vote: 20%
+    [D1] Gini coefficient:  0.486
+    [D1] Top 10% share:     38.9%
+    [D2] Whale dominance:   40.4%
+    [D3] Capital retention: 65.9%
+    [D3] ROI variance:      0.0000
+  RDA:
+    Total raised:      143.89
+    Tokens sold:       24.27
+    Participants:      30.0
+    [D1] Gini coefficient:  0.406
+    [D1] Top 10% share:     28.4%
+    [D2] Price volatility:  0.0311
+    [D2] Whale dominance:   29.2%
+    [D2] Timing corr:       0.022
+    [D3] ROI variance:      0.0911
+  [D1]=Allocation Efficiency  [D2]=Manipulation Resistance  [D3]=Incentive Alignment
+
+============================================================
+  High FOMO=0.7 + Herding=0.5
+============================================================
+  DAICO:
+    Pool remaining:    29.32
+    Released:          60.89
+    Release efficiency:64.4%
+    Destroyed by vote: 14%
+    [D1] Gini coefficient:  0.488
+    [D1] Top 10% share:     39.2%
+    [D2] Whale dominance:   40.7%
+    [D3] Capital retention: 67.1%
+    [D3] ROI variance:      0.0000
+  RDA:
+    Total raised:      143.93
+    Tokens sold:       23.74
+    Participants:      30.0
+    [D1] Gini coefficient:  0.400
+    [D1] Top 10% share:     27.6%
+    [D2] Price volatility:  0.0311
+    [D2] Whale dominance:   28.3%
+    [D2] Timing corr:       0.039
+    [D3] ROI variance:      0.0910
+  [D1]=Allocation Efficiency  [D2]=Manipulation Resistance  [D3]=Incentive Alignment
+
+------------------------------------------------------------------------------------------------------------------------
+  Summary Table (3 Shyam Dimensions)
+------------------------------------------------------------------------------------------------------------------------
+Scenario                       |     D1:AllocEff      |      D2:ManipResist       |    D3:IncentAlign   
+                               |   D_Gini   R_Gini |    R_Vol  D_Whale  R_Whale |   D_ROIv   R_ROIv
+------------------------------------------------------------------------------------------------------------------------
+Baseline (no behavioral effects) |    0.487    0.516 |   0.0311   40.5%   38.8% |   0.0000   0.0731
+FOMO = 0.3                     |    0.487    0.414 |   0.0311   40.8%   30.9% |   0.0000   0.0865
+FOMO = 0.5                     |    0.488    0.407 |   0.0311   40.9%   29.4% |   0.0000   0.0890
+FOMO = 0.7                     |    0.489    0.401 |   0.0311   41.1%   28.4% |   0.0000   0.0904
+FOMO=0.5 + Herding=0.3         |    0.487    0.407 |   0.0311   40.7%   29.3% |   0.0000   0.0911
+FOMO=0.5 + Herding=0.6         |    0.486    0.406 |   0.0311   40.4%   29.2% |   0.0000   0.0911
+High FOMO=0.7 + Herding=0.5    |    0.488    0.400 |   0.0311   40.7%   28.3% |   0.0000   0.0910
+
+############################################################
+# small_project profile (Solana/Gnosis/Abyss-scale, calibrated)
+############################################################
+
+============================================================
+  Baseline (no behavioral effects)
+============================================================
+  DAICO:
+    Pool remaining:    42762.88
+    Released:          17971.06
+    Release efficiency:23.2%
+    Destroyed by vote: 34%
+    [D1] Gini coefficient:  0.477
+    [D1] Top 10% share:     37.6%
+    [D2] Whale dominance:   38.3%
+    [D3] Capital retention: 29.2%
+    [D3] ROI variance:      0.0000
+  RDA:
+    Total raised:      91506.33
+    Tokens sold:       19411.17
+    Participants:      16.2
+    [D1] Gini coefficient:  0.544
+    [D1] Top 10% share:     38.7%
+    [D2] Price volatility:  0.0276
+    [D2] Whale dominance:   43.5%
+    [D2] Timing corr:       -0.115
+    [D3] ROI variance:      0.0513
+  [D1]=Allocation Efficiency  [D2]=Manipulation Resistance  [D3]=Incentive Alignment
+
+============================================================
+  FOMO = 0.3
+============================================================
+  DAICO:
+    Pool remaining:    42263.99
+    Released:          22408.76
+    Release efficiency:28.8%
+    Destroyed by vote: 26%
+    [D1] Gini coefficient:  0.477
+    [D1] Top 10% share:     37.7%
+    [D2] Whale dominance:   38.6%
+    [D3] Capital retention: 33.9%
+    [D3] ROI variance:      0.0000
+  RDA:
+    Total raised:      101827.43
+    Tokens sold:       18819.20
+    Participants:      20.0
+    [D1] Gini coefficient:  0.445
+    [D1] Top 10% share:     33.4%
+    [D2] Price volatility:  0.0276
+    [D2] Whale dominance:   37.0%
+    [D2] Timing corr:       -0.108
+    [D3] ROI variance:      0.0623
+  [D1]=Allocation Efficiency  [D2]=Manipulation Resistance  [D3]=Incentive Alignment
+
+============================================================
+  FOMO = 0.5
+============================================================
+  DAICO:
+    Pool remaining:    44454.57
+    Released:          22844.05
+    Release efficiency:27.9%
+    Destroyed by vote: 26%
+    [D1] Gini coefficient:  0.477
+    [D1] Top 10% share:     37.9%
+    [D2] Whale dominance:   38.7%
+    [D3] Capital retention: 33.4%
+    [D3] ROI variance:      0.0000
+  RDA:
+    Total raised:      103038.27
+    Tokens sold:       18043.69
+    Participants:      20.0
+    [D1] Gini coefficient:  0.432
+    [D1] Top 10% share:     31.6%
+    [D2] Price volatility:  0.0276
+    [D2] Whale dominance:   35.2%
+    [D2] Timing corr:       -0.123
+    [D3] ROI variance:      0.0678
+  [D1]=Allocation Efficiency  [D2]=Manipulation Resistance  [D3]=Incentive Alignment
+
+============================================================
+  FOMO = 0.7
+============================================================
+  DAICO:
+    Pool remaining:    44396.79
+    Released:          25448.71
+    Release efficiency:32.8%
+    Destroyed by vote: 16%
+    [D1] Gini coefficient:  0.478
+    [D1] Top 10% share:     38.0%
+    [D2] Whale dominance:   38.9%
+    [D3] Capital retention: 35.9%
+    [D3] ROI variance:      0.0000
+  RDA:
+    Total raised:      104035.11
+    Tokens sold:       17386.27
+    Participants:      20.0
+    [D1] Gini coefficient:  0.425
+    [D1] Top 10% share:     30.7%
+    [D2] Price volatility:  0.0276
+    [D2] Whale dominance:   34.0%
+    [D2] Timing corr:       -0.126
+    [D3] ROI variance:      0.0716
+  [D1]=Allocation Efficiency  [D2]=Manipulation Resistance  [D3]=Incentive Alignment
+
+============================================================
+  FOMO=0.5 + Herding=0.3
+============================================================
+  DAICO:
+    Pool remaining:    41395.51
+    Released:          27184.86
+    Release efficiency:37.7%
+    Destroyed by vote: 12%
+    [D1] Gini coefficient:  0.476
+    [D1] Top 10% share:     37.7%
+    [D2] Whale dominance:   38.5%
+    [D3] Capital retention: 39.5%
+    [D3] ROI variance:      0.0000
+  RDA:
+    Total raised:      103432.15
+    Tokens sold:       17954.53
+    Participants:      20.0
+    [D1] Gini coefficient:  0.432
+    [D1] Top 10% share:     31.6%
+    [D2] Price volatility:  0.0276
+    [D2] Whale dominance:   35.1%
+    [D2] Timing corr:       -0.129
+    [D3] ROI variance:      0.0688
+  [D1]=Allocation Efficiency  [D2]=Manipulation Resistance  [D3]=Incentive Alignment
+
+============================================================
+  FOMO=0.5 + Herding=0.6
+============================================================
+  DAICO:
+    Pool remaining:    39081.06
+    Released:          30766.25
+    Release efficiency:41.6%
+    Destroyed by vote: 14%
+    [D1] Gini coefficient:  0.475
+    [D1] Top 10% share:     37.6%
+    [D2] Whale dominance:   38.3%
+    [D3] Capital retention: 44.4%
+    [D3] ROI variance:      0.0000
+  RDA:
+    Total raised:      103241.20
+    Tokens sold:       17923.24
+    Participants:      20.0
+    [D1] Gini coefficient:  0.433
+    [D1] Top 10% share:     31.5%
+    [D2] Price volatility:  0.0276
+    [D2] Whale dominance:   35.0%
+    [D2] Timing corr:       -0.133
+    [D3] ROI variance:      0.0688
+  [D1]=Allocation Efficiency  [D2]=Manipulation Resistance  [D3]=Incentive Alignment
+
+============================================================
+  High FOMO=0.7 + Herding=0.5
+============================================================
+  DAICO:
+    Pool remaining:    41390.48
+    Released:          30544.35
+    Release efficiency:38.3%
+    Destroyed by vote: 18%
+    [D1] Gini coefficient:  0.477
+    [D1] Top 10% share:     37.8%
+    [D2] Whale dominance:   38.6%
+    [D3] Capital retention: 42.6%
+    [D3] ROI variance:      0.0000
+  RDA:
+    Total raised:      103910.08
+    Tokens sold:       17391.38
+    Participants:      20.0
+    [D1] Gini coefficient:  0.424
+    [D1] Top 10% share:     30.5%
+    [D2] Price volatility:  0.0276
+    [D2] Whale dominance:   33.8%
+    [D2] Timing corr:       -0.146
+    [D3] ROI variance:      0.0723
+  [D1]=Allocation Efficiency  [D2]=Manipulation Resistance  [D3]=Incentive Alignment
+
+------------------------------------------------------------------------------------------------------------------------
+  Summary Table (3 Shyam Dimensions)
+------------------------------------------------------------------------------------------------------------------------
+Scenario                       |     D1:AllocEff      |      D2:ManipResist       |    D3:IncentAlign   
+                               |   D_Gini   R_Gini |    R_Vol  D_Whale  R_Whale |   D_ROIv   R_ROIv
+------------------------------------------------------------------------------------------------------------------------
+Baseline (no behavioral effects) |    0.477    0.544 |   0.0276   38.3%   43.5% |   0.0000   0.0513
+FOMO = 0.3                     |    0.477    0.445 |   0.0276   38.6%   37.0% |   0.0000   0.0623
+FOMO = 0.5                     |    0.477    0.432 |   0.0276   38.7%   35.2% |   0.0000   0.0678
+FOMO = 0.7                     |    0.478    0.425 |   0.0276   38.9%   34.0% |   0.0000   0.0716
+FOMO=0.5 + Herding=0.3         |    0.476    0.432 |   0.0276   38.5%   35.1% |   0.0000   0.0688
+FOMO=0.5 + Herding=0.6         |    0.475    0.433 |   0.0276   38.3%   35.0% |   0.0000   0.0688
+High FOMO=0.7 + Herding=0.5    |    0.477    0.424 |   0.0276   38.6%   33.8% |   0.0000   0.0723
+
+############################################################
+# large_project profile (Casper/Mina/Flow/Algorand-scale, calibrated)
+############################################################
+
+============================================================
+  Baseline (no behavioral effects)
+============================================================
+  DAICO:
+    Pool remaining:    150359.53
+    Released:          135529.30
+    Release efficiency:47.4%
+    Destroyed by vote: 0%
+    [D1] Gini coefficient:  0.519
+    [D1] Top 10% share:     42.9%
+    [D2] Whale dominance:   43.7%
+    [D3] Capital retention: 47.4%
+    [D3] ROI variance:      0.0000
+  RDA:
+    Total raised:      474438.64
+    Tokens sold:       89730.96
+    Participants:      271.8
+    [D1] Gini coefficient:  0.564
+    [D1] Top 10% share:     42.9%
+    [D2] Price volatility:  0.0074
+    [D2] Whale dominance:   43.1%
+    [D2] Timing corr:       0.057
+    [D3] ROI variance:      0.0571
+  [D1]=Allocation Efficiency  [D2]=Manipulation Resistance  [D3]=Incentive Alignment
+
+============================================================
+  FOMO = 0.3
+============================================================
+  DAICO:
+    Pool remaining:    160142.98
+    Released:          144347.79
+    Release efficiency:47.4%
+    Destroyed by vote: 0%
+    [D1] Gini coefficient:  0.519
+    [D1] Top 10% share:     43.2%
+    [D2] Whale dominance:   43.9%
+    [D3] Capital retention: 47.4%
+    [D3] ROI variance:      0.0000
+  RDA:
+    Total raised:      512923.53
+    Tokens sold:       80469.52
+    Participants:      340.0
+    [D1] Gini coefficient:  0.442
+    [D1] Top 10% share:     32.2%
+    [D2] Price volatility:  0.0074
+    [D2] Whale dominance:   31.9%
+    [D2] Timing corr:       0.000
+    [D3] ROI variance:      0.0662
+  [D1]=Allocation Efficiency  [D2]=Manipulation Resistance  [D3]=Incentive Alignment
+
+============================================================
+  FOMO = 0.5
+============================================================
+  DAICO:
+    Pool remaining:    166665.29
+    Released:          150226.79
+    Release efficiency:47.4%
+    Destroyed by vote: 0%
+    [D1] Gini coefficient:  0.520
+    [D1] Top 10% share:     43.4%
+    [D2] Whale dominance:   44.1%
+    [D3] Capital retention: 47.4%
+    [D3] ROI variance:      0.0000
+  RDA:
+    Total raised:      512931.27
+    Tokens sold:       78504.03
+    Participants:      340.0
+    [D1] Gini coefficient:  0.435
+    [D1] Top 10% share:     31.0%
+    [D2] Price volatility:  0.0074
+    [D2] Whale dominance:   30.6%
+    [D2] Timing corr:       0.016
+    [D3] ROI variance:      0.0681
+  [D1]=Allocation Efficiency  [D2]=Manipulation Resistance  [D3]=Incentive Alignment
+
+============================================================
+  FOMO = 0.7
+============================================================
+  DAICO:
+    Pool remaining:    172993.61
+    Released:          155930.94
+    Release efficiency:47.4%
+    Destroyed by vote: 0%
+    [D1] Gini coefficient:  0.521
+    [D1] Top 10% share:     43.6%
+    [D2] Whale dominance:   44.3%
+    [D3] Capital retention: 47.4%
+    [D3] ROI variance:      0.0000
+  RDA:
+    Total raised:      512932.24
+    Tokens sold:       77715.74
+    Participants:      340.0
+    [D1] Gini coefficient:  0.432
+    [D1] Top 10% share:     30.6%
+    [D2] Price volatility:  0.0074
+    [D2] Whale dominance:   30.1%
+    [D2] Timing corr:       0.024
+    [D3] ROI variance:      0.0689
+  [D1]=Allocation Efficiency  [D2]=Manipulation Resistance  [D3]=Incentive Alignment
+
+============================================================
+  FOMO=0.5 + Herding=0.3
+============================================================
+  DAICO:
+    Pool remaining:    170148.78
+    Released:          153366.70
+    Release efficiency:47.4%
+    Destroyed by vote: 0%
+    [D1] Gini coefficient:  0.519
+    [D1] Top 10% share:     43.1%
+    [D2] Whale dominance:   43.8%
+    [D3] Capital retention: 47.4%
+    [D3] ROI variance:      0.0000
+  RDA:
+    Total raised:      512925.24
+    Tokens sold:       78451.45
+    Participants:      340.0
+    [D1] Gini coefficient:  0.435
+    [D1] Top 10% share:     31.0%
+    [D2] Price volatility:  0.0074
+    [D2] Whale dominance:   30.6%
+    [D2] Timing corr:       0.016
+    [D3] ROI variance:      0.0683
+  [D1]=Allocation Efficiency  [D2]=Manipulation Resistance  [D3]=Incentive Alignment
+
+============================================================
+  FOMO=0.5 + Herding=0.6
+============================================================
+  DAICO:
+    Pool remaining:    171538.29
+    Released:          158504.90
+    Release efficiency:48.0%
+    Destroyed by vote: 0%
+    [D1] Gini coefficient:  0.518
+    [D1] Top 10% share:     42.8%
+    [D2] Whale dominance:   43.5%
+    [D3] Capital retention: 48.0%
+    [D3] ROI variance:      0.0000
+  RDA:
+    Total raised:      512929.39
+    Tokens sold:       78478.65
+    Participants:      340.0
+    [D1] Gini coefficient:  0.436
+    [D1] Top 10% share:     31.0%
+    [D2] Price volatility:  0.0074
+    [D2] Whale dominance:   30.6%
+    [D2] Timing corr:       0.016
+    [D3] ROI variance:      0.0683
+  [D1]=Allocation Efficiency  [D2]=Manipulation Resistance  [D3]=Incentive Alignment
+
+============================================================
+  High FOMO=0.7 + Herding=0.5
+============================================================
+  DAICO:
+    Pool remaining:    176922.53
+    Released:          162784.01
+    Release efficiency:47.9%
+    Destroyed by vote: 0%
+    [D1] Gini coefficient:  0.520
+    [D1] Top 10% share:     43.2%
+    [D2] Whale dominance:   43.8%
+    [D3] Capital retention: 47.9%
+    [D3] ROI variance:      0.0000
+  RDA:
+    Total raised:      512934.42
+    Tokens sold:       77707.34
+    Participants:      340.0
+    [D1] Gini coefficient:  0.432
+    [D1] Top 10% share:     30.5%
+    [D2] Price volatility:  0.0074
+    [D2] Whale dominance:   30.1%
+    [D2] Timing corr:       0.025
+    [D3] ROI variance:      0.0690
+  [D1]=Allocation Efficiency  [D2]=Manipulation Resistance  [D3]=Incentive Alignment
+
+------------------------------------------------------------------------------------------------------------------------
+  Summary Table (3 Shyam Dimensions)
+------------------------------------------------------------------------------------------------------------------------
+Scenario                       |     D1:AllocEff      |      D2:ManipResist       |    D3:IncentAlign   
+                               |   D_Gini   R_Gini |    R_Vol  D_Whale  R_Whale |   D_ROIv   R_ROIv
+------------------------------------------------------------------------------------------------------------------------
+Baseline (no behavioral effects) |    0.519    0.564 |   0.0074   43.7%   43.1% |   0.0000   0.0571
+FOMO = 0.3                     |    0.519    0.442 |   0.0074   43.9%   31.9% |   0.0000   0.0662
+FOMO = 0.5                     |    0.520    0.435 |   0.0074   44.1%   30.6% |   0.0000   0.0681
+FOMO = 0.7                     |    0.521    0.432 |   0.0074   44.3%   30.1% |   0.0000   0.0689
+FOMO=0.5 + Herding=0.3         |    0.519    0.435 |   0.0074   43.8%   30.6% |   0.0000   0.0683
+FOMO=0.5 + Herding=0.6         |    0.518    0.436 |   0.0074   43.5%   30.6% |   0.0000   0.0683
+High FOMO=0.7 + Herding=0.5    |    0.520    0.432 |   0.0074   43.8%   30.1% |   0.0000   0.0690
+
+==========================================================================================
+  Comparison: v3 defaults vs v4 calibrated profiles (baseline scenario)
+==========================================================================================
+  -- Core --
+  DAICO release efficiency     v3=       33.2%   small=       23.2%   large=       47.4%
+  RDA total raised             v3=      133.63   small=   91,506.33   large=  474,438.64
+  RDA participants             v3=        24.4   small=        16.2   large=       271.8
+  -- D1: Allocation Efficiency --
+  DAICO Gini                   v3=       0.487   small=       0.477   large=       0.519
+  RDA Gini                     v3=       0.516   small=       0.544   large=       0.564
+  -- D2: Manipulation Resistance --
+  RDA price volatility         v3=      0.0311   small=      0.0276   large=      0.0074
+  DAICO whale dominance        v3=       40.5%   small=       38.3%   large=       43.7%
+  RDA whale dominance          v3=       38.8%   small=       43.5%   large=       43.1%
+  RDA timing correlation       v3=      -0.011   small=      -0.115   large=       0.057
+  -- D3: Incentive Alignment --
+  DAICO capital retention      v3=       38.6%   small=       29.2%   large=       47.4%
+  DAICO ROI variance           v3=      0.0000   small=      0.0000   large=      0.0000
+  RDA ROI variance             v3=      0.0731   small=      0.0513   large=      0.0571
+
+  Key calibration effects vs v3 defaults:
+    - RDA end price is 24% of start price (Algorand-derived), not v3's 10% -- auctions clear higher and raise more per token.
+    - small_project has fewer, richer agents (20 agents, 1182.0x capital) -- niche-raise pattern.
+    - large_project has many more, smaller-capital agents (340 agents, 323.5x capital) -- mass-raise pattern, typically pulling Gini down and participant counts up relative to v3's flat n_agents=30.

@@ -1,0 +1,457 @@
+No files changed, compilation skipped
+
+Ran 13 tests for test/unit/SignalMonitorTest.sol:SignalMonitorTest
+[PASS] test_addReporterBeyondMaxReverts() (gas: 1006153)
+[PASS] test_freshnessNoPanicAtExtremes() (gas: 2876088)
+[PASS] test_medianResistsOutlier() (gas: 898959)
+[PASS] test_quorumAboveMaxReportersReverts() (gas: 2220171)
+[PASS] test_quorumTriggers() (gas: 1036874)
+[PASS] test_rawRoleMutationReverts() (gas: 186296)
+[PASS] test_removeReporterDropsSubmission() (gas: 821371)
+[PASS] test_removeReporterExcludesOldSubmission() (gas: 392790)
+[PASS] test_singleReporterCannotTrigger() (gas: 755901)
+[PASS] test_staleSubmissionExpires() (gas: 807994)
+[PASS] test_v1Compat() (gas: 3928143)
+[PASS] test_zeroQuorumReverts() (gas: 45312)
+[PASS] test_zeroWindowReverts() (gas: 45328)
+Suite result: ok. 13 passed; 0 failed; 0 skipped; finished in 4.62ms (11.33ms CPU time)
+
+Ran 21 tests for test/unit/LAFVaultTest.sol:LAFVaultTest
+[PASS] testFuzz_claim_returnsExactlyStreamedAmount(uint256) (runs: 256, μ: 568204, ~: 568715)
+[PASS] test_checkPoolDepletion_noOpAboveThreshold() (gas: 554235)
+[PASS] test_checkPoolDepletion_triggersTerminalBelowThreshold() (gas: 643309)
+[PASS] test_claim_cappedAtUnreleasedBalance() (gas: 564767)
+[PASS] test_claim_onlyTeamRole() (gas: 550325)
+[PASS] test_claim_returnsStreamedAmount() (gas: 636137)
+[PASS] test_claim_revertsAfterTerminal() (gas: 652252)
+[PASS] test_claim_revertsBeforeFundingClosed() (gas: 230440)
+[PASS] test_deposit_mintsSharesProportionally() (gas: 224212)
+[PASS] test_deposit_multipleInvestors() (gas: 341608)
+[PASS] test_deposit_revertsAfterFundingClosed() (gas: 553356)
+[PASS] test_deposit_revertsOnZero() (gas: 13307)
+[PASS] test_invariant_balanceEqualsAccounting() (gas: 763065)
+[PASS] test_pauseForAudit_blocksClaimDuringPause() (gas: 683172)
+[PASS] test_pauseForAudit_excludesPausedTimeFromStream() (gas: 646670)
+[PASS] test_pauseForAudit_revertsIfResponsePeriodExceedsMax() (gas: 552719)
+[PASS] test_resumeIfTimedOut_onlyAfterResponsePeriod() (gas: 596954)
+[PASS] test_resumeStreaming_onlyGovernorRole() (gas: 632842)
+[PASS] test_setStreamRate_changesRate() (gas: 696244)
+[PASS] test_setStreamRate_onlyGovernorRole() (gas: 549479)
+[PASS] test_withdrawForRageQuit_onlyRageQuitRole() (gas: 550088)
+Suite result: ok. 21 passed; 0 failed; 0 skipped; finished in 1.17s (26.18ms CPU time)
+
+Ran 17 tests for test/unit/QuadraticGovernorTest.sol:QuadraticGovernorTest
+[PASS] test_firstWindow_opensWithoutIntervalGate_andIs14DaysLong() (gas: 703457)
+[PASS] test_fourPercentHolderMeetsQuorumExactly() (gas: 779163)
+[PASS] test_initiateAuditVote_onlyOncePerWindow() (gas: 768224)
+[PASS] test_openCheckpointWindow_revertsBeforeIntervalElapsed() (gas: 850026)
+[PASS] test_resolveCheckpoint_appliesEachAction() (gas: 2539836)
+[PASS] test_resolveCheckpoint_cannotExecuteTwice() (gas: 765895)
+[PASS] test_resolveCheckpoint_defaultsToContinue_ifQuorumNotMet() (gas: 959139)
+[PASS] test_resolveCheckpoint_pluralityBelowMajority_isContinue() (gas: 1317504)
+[PASS] test_resolveCheckpoint_revertsForUnopenedId() (gas: 697738)
+[PASS] test_singleWhaleCanReachQuorumAlone() (gas: 1411673)
+[PASS] test_triggerEarlyCheckpoint_noOpIfWindowAlreadyOpen() (gas: 1071063)
+[PASS] test_triggerEarlyCheckpoint_onlySignalRole() (gas: 766517)
+[PASS] test_triggerEarlyCheckpoint_rateLimitedTo1Per30Days() (gas: 927941)
+[PASS] test_vote_oneVotePerAddressPerCheckpoint() (gas: 1098750)
+[PASS] test_vote_revertsAfterWindowClosed() (gas: 1029588)
+[PASS] test_votingWeight_isSqrtOfBalance() (gas: 708356)
+[PASS] test_windowCloses_asContinue_ifAuditNeverInitiated() (gas: 755195)
+Suite result: ok. 17 passed; 0 failed; 0 skipped; finished in 1.21s (11.11ms CPU time)
+
+Ran 9 tests for test/unit/RageQuitTest.sol:RageQuitTest
+[PASS] test_rageQuit_availableDuringPause() (gas: 703459)
+[PASS] test_rageQuit_availableDuringTerminal() (gas: 677889)
+[PASS] test_rageQuit_belowThreshold_doesNotPause() (gas: 803700)
+[PASS] test_rageQuit_crossing25PercentThreshold_autoPausesVault() (gas: 942837)
+[PASS] test_rageQuit_partialExit() (gas: 642292)
+[PASS] test_rageQuit_paysCorrectProportionalShare() (gas: 624515)
+[PASS] test_rageQuit_revertsOnInsufficientShares() (gas: 559419)
+[PASS] test_rageQuit_revertsOnZeroShares() (gas: 556643)
+[PASS] test_rageQuit_sequentialQuittersGetCorrectShare() (gas: 626045)
+Suite result: ok. 9 passed; 0 failed; 0 skipped; finished in 1.21s (4.29ms CPU time)
+
+Ran 5 tests for test/stress/StressTest.sol:StressTest
+[PASS] test_stress_bankRun() (gas: 1077032)
+[PASS] test_stress_cascade() (gas: 1181898)
+[PASS] test_stress_governanceApathy() (gas: 1081600)
+[PASS] test_stress_signalGaming() (gas: 1369088)
+[PASS] test_stress_sybilCheckpoint() (gas: 12845799)
+Suite result: ok. 5 passed; 0 failed; 0 skipped; finished in 4.44s (10.12ms CPU time)
+
+Ran 7 tests for test/integration/CrossLayerTest.sol:CrossLayerTest
+[PASS] test_integration_governorHaltsStream_rageQuitStillAvailable() (gas: 1118222)
+[PASS] test_integration_massRageQuitCrossesThresholdDuringOpenCheckpoint() (gas: 1098242)
+[PASS] test_integration_pauseTimeoutThenAutoResume() (gas: 720073)
+[PASS] test_integration_poolDepletionDuringActivePause() (gas: 758416)
+[PASS] test_integration_rageQuitDuringActiveVote_doesNotBreakTally() (gas: 1113049)
+[PASS] test_integration_signalTriggersCheckpoint_thenAuditPassesAndPauses() (gas: 1427481)
+[PASS] test_integration_worstCaseMaliciousTeam() (gas: 1444589)
+Suite result: ok. 7 passed; 0 failed; 0 skipped; finished in 4.44s (4.56ms CPU time)
+
+Ran 11 tests for test/invariant/LAFInvariant.t.sol:LAFInvariantTest
+[PASS] invariant_claimableBoundedByUnreleased() (runs: 128, calls: 8192, reverts: 0)
+
+╭------------+--------------------+-------+---------+----------╮
+| Contract   | Selector           | Calls | Reverts | Discards |
++==============================================================+
+| LAFHandler | checkPoolDepletion | 553   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | claim              | 544   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | closeFunding       | 541   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | deposit            | 558   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | evaluate           | 518   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | initiateAndVote    | 540   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | openCheckpoint     | 534   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | pauseForAudit      | 546   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | rageQuitAction     | 576   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | reportMetric       | 506   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | resolveCheckpoint  | 596   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | resumeIfTimedOut   | 562   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | resumeStreaming    | 543   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | toggleReporter     | 552   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | warpForward        | 523   | 0       | 0        |
+╰------------+--------------------+-------+---------+----------╯
+
+[PASS] invariant_noClaimableWhenPausedOrTerminal() (runs: 128, calls: 8192, reverts: 0)
+
+╭------------+--------------------+-------+---------+----------╮
+| Contract   | Selector           | Calls | Reverts | Discards |
++==============================================================+
+| LAFHandler | checkPoolDepletion | 553   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | claim              | 544   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | closeFunding       | 541   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | deposit            | 558   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | evaluate           | 518   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | initiateAndVote    | 540   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | openCheckpoint     | 534   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | pauseForAudit      | 546   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | rageQuitAction     | 576   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | reportMetric       | 506   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | resolveCheckpoint  | 596   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | resumeIfTimedOut   | 562   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | resumeStreaming    | 543   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | toggleReporter     | 552   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | warpForward        | 523   | 0       | 0        |
+╰------------+--------------------+-------+---------+----------╯
+
+[PASS] invariant_outflowNeverExceedsDeposits() (runs: 128, calls: 8192, reverts: 0)
+
+╭------------+--------------------+-------+---------+----------╮
+| Contract   | Selector           | Calls | Reverts | Discards |
++==============================================================+
+| LAFHandler | checkPoolDepletion | 553   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | claim              | 544   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | closeFunding       | 541   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | deposit            | 558   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | evaluate           | 518   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | initiateAndVote    | 540   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | openCheckpoint     | 534   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | pauseForAudit      | 546   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | rageQuitAction     | 576   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | reportMetric       | 506   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | resolveCheckpoint  | 596   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | resumeIfTimedOut   | 562   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | resumeStreaming    | 543   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | toggleReporter     | 552   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | warpForward        | 523   | 0       | 0        |
+╰------------+--------------------+-------+---------+----------╯
+
+[PASS] invariant_shareSupplyBounded() (runs: 128, calls: 8192, reverts: 0)
+
+╭------------+--------------------+-------+---------+----------╮
+| Contract   | Selector           | Calls | Reverts | Discards |
++==============================================================+
+| LAFHandler | checkPoolDepletion | 553   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | claim              | 544   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | closeFunding       | 541   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | deposit            | 558   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | evaluate           | 518   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | initiateAndVote    | 540   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | openCheckpoint     | 534   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | pauseForAudit      | 546   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | rageQuitAction     | 576   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | reportMetric       | 506   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | resolveCheckpoint  | 596   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | resumeIfTimedOut   | 562   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | resumeStreaming    | 543   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | toggleReporter     | 552   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | warpForward        | 523   | 0       | 0        |
+╰------------+--------------------+-------+---------+----------╯
+
+[PASS] invariant_signalFlagsBackedByQuorum() (runs: 128, calls: 8192, reverts: 0)
+
+╭------------+--------------------+-------+---------+----------╮
+| Contract   | Selector           | Calls | Reverts | Discards |
++==============================================================+
+| LAFHandler | checkPoolDepletion | 553   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | claim              | 544   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | closeFunding       | 541   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | deposit            | 558   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | evaluate           | 518   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | initiateAndVote    | 540   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | openCheckpoint     | 534   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | pauseForAudit      | 546   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | rageQuitAction     | 576   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | reportMetric       | 506   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | resolveCheckpoint  | 596   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | resumeIfTimedOut   | 562   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | resumeStreaming    | 543   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | toggleReporter     | 552   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | warpForward        | 523   | 0       | 0        |
+╰------------+--------------------+-------+---------+----------╯
+
+[PASS] invariant_terminalImpliesZeroRate() (runs: 128, calls: 8192, reverts: 0)
+
+╭------------+--------------------+-------+---------+----------╮
+| Contract   | Selector           | Calls | Reverts | Discards |
++==============================================================+
+| LAFHandler | checkPoolDepletion | 553   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | claim              | 544   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | closeFunding       | 541   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | deposit            | 558   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | evaluate           | 518   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | initiateAndVote    | 540   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | openCheckpoint     | 534   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | pauseForAudit      | 546   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | rageQuitAction     | 576   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | reportMetric       | 506   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | resolveCheckpoint  | 596   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | resumeIfTimedOut   | 562   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | resumeStreaming    | 543   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | toggleReporter     | 552   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | warpForward        | 523   | 0       | 0        |
+╰------------+--------------------+-------+---------+----------╯
+
+[PASS] invariant_terminalIsOneWay() (runs: 128, calls: 8192, reverts: 0)
+
+╭------------+--------------------+-------+---------+----------╮
+| Contract   | Selector           | Calls | Reverts | Discards |
++==============================================================+
+| LAFHandler | checkPoolDepletion | 553   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | claim              | 544   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | closeFunding       | 541   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | deposit            | 558   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | evaluate           | 518   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | initiateAndVote    | 540   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | openCheckpoint     | 534   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | pauseForAudit      | 546   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | rageQuitAction     | 576   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | reportMetric       | 506   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | resolveCheckpoint  | 596   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | resumeIfTimedOut   | 562   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | resumeStreaming    | 543   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | toggleReporter     | 552   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | warpForward        | 523   | 0       | 0        |
+╰------------+--------------------+-------+---------+----------╯
+
+[PASS] invariant_unreleasedBalanceConsistent() (runs: 128, calls: 8192, reverts: 0)
+
+╭------------+--------------------+-------+---------+----------╮
+| Contract   | Selector           | Calls | Reverts | Discards |
++==============================================================+
+| LAFHandler | checkPoolDepletion | 553   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | claim              | 544   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | closeFunding       | 541   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | deposit            | 558   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | evaluate           | 518   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | initiateAndVote    | 540   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | openCheckpoint     | 534   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | pauseForAudit      | 546   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | rageQuitAction     | 576   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | reportMetric       | 506   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | resolveCheckpoint  | 596   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | resumeIfTimedOut   | 562   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | resumeStreaming    | 543   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | toggleReporter     | 552   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | warpForward        | 523   | 0       | 0        |
+╰------------+--------------------+-------+---------+----------╯
+
+[PASS] invariant_vaultBalanceEqualsAccountingIdentity() (runs: 128, calls: 8192, reverts: 0)
+
+╭------------+--------------------+-------+---------+----------╮
+| Contract   | Selector           | Calls | Reverts | Discards |
++==============================================================+
+| LAFHandler | checkPoolDepletion | 553   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | claim              | 544   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | closeFunding       | 541   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | deposit            | 558   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | evaluate           | 518   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | initiateAndVote    | 540   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | openCheckpoint     | 534   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | pauseForAudit      | 546   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | rageQuitAction     | 576   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | reportMetric       | 506   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | resolveCheckpoint  | 596   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | resumeIfTimedOut   | 562   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | resumeStreaming    | 543   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | toggleReporter     | 552   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | warpForward        | 523   | 0       | 0        |
+╰------------+--------------------+-------+---------+----------╯
+
+[PASS] invariant_vaultBalanceNonNegative() (runs: 128, calls: 8192, reverts: 0)
+
+╭------------+--------------------+-------+---------+----------╮
+| Contract   | Selector           | Calls | Reverts | Discards |
++==============================================================+
+| LAFHandler | checkPoolDepletion | 553   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | claim              | 544   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | closeFunding       | 541   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | deposit            | 558   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | evaluate           | 518   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | initiateAndVote    | 540   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | openCheckpoint     | 534   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | pauseForAudit      | 546   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | rageQuitAction     | 576   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | reportMetric       | 506   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | resolveCheckpoint  | 596   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | resumeIfTimedOut   | 562   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | resumeStreaming    | 543   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | toggleReporter     | 552   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | warpForward        | 523   | 0       | 0        |
+╰------------+--------------------+-------+---------+----------╯
+
+[PASS] test_handlerClaimPaysTeam() (gas: 193922)
+Suite result: ok. 11 passed; 0 failed; 0 skipped; finished in 4.44s (14.99s CPU time)
+
+Ran 7 test suites in 4.45s (16.91s CPU time): 83 tests passed, 0 failed, 0 skipped (83 total tests)

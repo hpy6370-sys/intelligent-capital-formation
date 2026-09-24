@@ -1,0 +1,1175 @@
+Capstone ICF Simulation v5.0 -- calibrated with real project data
+DAICO vs Reverse Dutch Auction vs LAF | Monte Carlo N=50
+
+Real-data parameters extracted from the initial 50-project dataset (merged into 03-dataset/dataset_82_projects.md):
+
+  DAICO avg contribution (The Abyss: $15,362,418 / 4,897 contributors) = $3,137.11
+  RDA avg contribution by project (raised / participants):
+    Casper Network       $970.59
+    Mina Protocol        $462.96
+    Flow (Dapper Labs)   $1,440.00
+    Solana               $3,955.06
+  RDA price decline ratio (Algorand $10 -> $2.40 clearing, 4,000 rounds) = 24.00% of start price
+    (Solana's $0.22 flat clearing price is not on a comparable token scale, so it is used only as a sanity check, not folded into the ratio.)
+
+  small_project profile: n_agents=20 (Solana's 445 bidders / 100, floored at 20), capital_scale=1182.0x v3 baseline
+  large_project profile: n_agents=340 (median of Casper/Mina/Flow participants / 100), capital_scale=323.5x v3 baseline
+
+  NOTE: DAICO tap_rate (0.02 small / 0.008 large) is a reasoned assumption, not a dataset figure - no project reports an explicit tap-rate %.
+
+LAF (Layered Accountability Framework) modeling assumptions and agent rules:
+  A1 Population: LAF runs on the DAICO agent population of the same seed; each agent's DAICO
+     contribution is its LAF deposit, shares minted 1:1. No new agents, no secondary market.
+  A2 Time: 1 round = 7 days. Horizons: v3 50 rounds = 350 d, small 20 rounds = 140 d, large 80 rounds
+     = 560 d. Scheduled checkpoints (90 d interval, 14 d window) therefore fire 3 / 1 / 5 times
+     (the interval is measured from the previous resolution, so one cycle is 90 + 14 days).
+  A3 Stream rate: ratePerRound = tap_rate x total raised (linear on the initial raise). This is the
+     same headline rate as DAICO's tap, which is geometric on the remaining pool. Team claims every round.
+  A4 Discontent: the DAICO destroy-vote propensity p = max(0.005, 0.03 - 0.02 x fomo) is reused as the
+     per-round probability that a rational or whale agent becomes 'concerned' (persistent flag).
+  A5 Exit rules (rage quit is always full-stake; partial quits not modeled):
+     rational      quits when concerned, or when any CRITICAL signal is active, or with p=0.5 per round
+                   while any WARNING signal is active (exit over voice).
+     whale         votes first: concerned whale votes PAUSE_FOR_AUDIT at the next checkpoint and quits only
+                   if that checkpoint resolves CONTINUE (voice failed); quits at once on CRITICAL.
+     speculator    no token price exists in the model, so profit-taking cannot be modeled; speculators are
+                   trend-followers: quit with p=0.5 per round on WARNING, p=0.5 after a PAUSE/HALT
+                   resolution, always on CRITICAL.
+     fomo_follower quits with p = herding_sensitivity x (share of supply that rage-quit in the last 30 d),
+                   +0.5 on CRITICAL.
+     late_entrant  passive: quits with p=0.5 per round on CRITICAL only.
+     everyone      quits when the vault is terminal (Rule 4): that IS the pro-rata wind-down.
+  A6 Voting (sqrt(shares at window open) weight, one vote per holder per window, only current holders vote):
+     audit vote is initiated if any concerned holder exists or any signal is active; otherwise the window
+     resolves CONTINUE untouched (governance apathy default, Limitation 5).
+     rational      PAUSE_FOR_AUDIT on CRITICAL, DECREASE_RATE on WARNING, else abstains.
+     whale         PAUSE_FOR_AUDIT if concerned or CRITICAL, DECREASE_RATE on WARNING, else CONTINUE.
+     speculator    INCREASE_RATE with p = 0.15 + 0.15 x fomo (DAICO raise-vote rule), else abstains.
+     fomo_follower with p = herding_sensitivity votes the current plurality (votes are tallied after the
+                   other types), else abstains.
+     late_entrant  abstains.
+  A7 Resolution (mirrors QuadraticGovernor.resolveCheckpoint): quorum = 20% of sqrt(total shares at open),
+     winner must exceed 50% of cast weight, else CONTINUE. INCREASE/DECREASE move the rate by 30% of the
+     initial rate (cap 15% of raise per round, floor 0). PAUSE_FOR_AUDIT pauses 30 d. HALT sets rate 0
+     until a later INCREASE_RATE. Pauses end by timeout (Rule 1b); no separate resume vote is modeled.
+  A8 Rule 2 mirrors the contract: cumulative rage quit since the last window open > 25% of the balance
+     snapshotted at that open pauses the stream 60 d. Before the first window opens the snapshot is 0 and
+     the rule is inactive, exactly as in LAFVault.withdrawForRageQuit.
+  A9 Rule 4: unreleased balance < 10% of the raise makes the vault terminal (rate 0, everyone exits pro rata).
+     Once terminal, checkpoints and signals stop: claim() reverts forever, so no governor action can change
+     anything. Checkpoint / signal counts therefore describe the live phase only.
+  A10 Signals use model proxies: TVL = vault balance, active addresses = holders with shares > 0, team
+      outflow = current rate / initial rate, HHI = sum of squared share fractions. Each is compared with
+      its value 28 d (4 rounds) earlier. COMMIT_INACTIVITY has no proxy and is skipped. Early checkpoints
+      are rate-limited to one per 30 d and are a no-op while a window is open (Rule 3).
+  A11 No exogenous project failure process exists in the FOMO/herding scenarios, so signal-driven
+      behaviour is only exercised when agent exits themselves move the proxies past a threshold.
+  Signals not evaluated:
+    COMMIT_INACTIVITY: needs a GitHub commit feed; the model has no development activity variable, so it is not evaluated
+  Monte Carlo averages of laf_whale_vote_share, laf_timing_corr and laf_recovery_quitters skip runs
+  where the quantity is undefined (no votes cast / fewer than 3 quitters / no quitters).
+
+############################################################
+# v3 defaults (uncalibrated, for reference)
+############################################################
+
+============================================================
+  Baseline (no behavioral effects)
+============================================================
+  DAICO:
+    Pool remaining:    46.15
+    Released:          29.86
+    Release efficiency:33.2%
+    Destroyed by vote: 24%
+    [D1] Gini coefficient:  0.487
+    [D1] Top 10% share:     39.0%
+    [D2] Whale dominance:   40.5%
+    [D3] Capital retention: 38.6%
+    [D3] ROI variance:      0.0000
+  RDA:
+    Total raised:      133.63
+    Tokens sold:       27.71
+    Participants:      24.4
+    [D1] Gini coefficient:  0.516
+    [D1] Top 10% share:     36.4%
+    [D2] Price volatility:  0.0311
+    [D2] Whale dominance:   38.8%
+    [D2] Timing corr:       -0.011
+    [D3] ROI variance:      0.0731
+  [D1]=Allocation Efficiency  [D2]=Manipulation Resistance  [D3]=Incentive Alignment
+  LAF:
+    Pool remaining:    16.85
+    Released to team:  32.53
+    Exited (rage quit):26.63
+    Release efficiency:40.8%
+    Terminal (Rule 4): 8%
+    [D1] Gini coefficient:  0.669   (final shares; 0 when everyone has exited)
+    [D1] Gini of $ outcome: 0.496   (payout + held shares at end NAV)
+    [D1] Top 10% share:     51.7%
+    [D2] Whale dominance:   39.9%
+    [D2] Whale vote weight: 74.3%
+    [D2] Timing corr:       -0.991
+    [D3] Capital retention: 43.4%
+    [D3] ROI variance:      0.1220
+    [LAF] Investor recovery (quitters):    74.5%
+    [LAF] Investor recovery (all capital): 34.0%
+    [LAF] Team received:                   43.4%
+    [LAF] Rage-quit rate (agents):         45.5%   holders remaining: 16.4   end NAV/share: 0.401
+    [LAF] Checkpoints: 2.96  signal-triggered: 0.06  Rule-2 pauses: 0.66  paused days: 44.4  warning rounds: 0.40
+    [LAF] Outcomes/run: CONTINUE 2.20  INCREASE 0.20  DECREASE 0.04  PAUSE 0.52  HALT 0.00
+
+============================================================
+  FOMO = 0.3
+============================================================
+  DAICO:
+    Pool remaining:    45.17
+    Released:          35.77
+    Release efficiency:40.1%
+    Destroyed by vote: 14%
+    [D1] Gini coefficient:  0.487
+    [D1] Top 10% share:     39.2%
+    [D2] Whale dominance:   40.8%
+    [D3] Capital retention: 43.3%
+    [D3] ROI variance:      0.0000
+  RDA:
+    Total raised:      143.82
+    Tokens sold:       25.31
+    Participants:      30.0
+    [D1] Gini coefficient:  0.414
+    [D1] Top 10% share:     29.6%
+    [D2] Price volatility:  0.0311
+    [D2] Whale dominance:   30.9%
+    [D2] Timing corr:       -0.002
+    [D3] ROI variance:      0.0865
+  [D1]=Allocation Efficiency  [D2]=Manipulation Resistance  [D3]=Incentive Alignment
+  LAF:
+    Pool remaining:    19.64
+    Released to team:  36.49
+    Exited (rage quit):24.82
+    Release efficiency:44.6%
+    Terminal (Rule 4): 2%
+    [D1] Gini coefficient:  0.690   (final shares; 0 when everyone has exited)
+    [D1] Gini of $ outcome: 0.498   (payout + held shares at end NAV)
+    [D1] Top 10% share:     51.9%
+    [D2] Whale dominance:   39.8%
+    [D2] Whale vote weight: 69.1%
+    [D2] Timing corr:       -0.994
+    [D3] Capital retention: 45.5%
+    [D3] ROI variance:      0.1176
+    [LAF] Investor recovery (quitters):    75.1%
+    [LAF] Investor recovery (all capital): 29.9%
+    [LAF] Team received:                   45.5%
+    [LAF] Rage-quit rate (agents):         39.7%   holders remaining: 18.1   end NAV/share: 0.422
+    [LAF] Checkpoints: 3.00  signal-triggered: 0.04  Rule-2 pauses: 0.60  paused days: 37.4  warning rounds: 0.26
+    [LAF] Outcomes/run: CONTINUE 2.30  INCREASE 0.30  DECREASE 0.04  PAUSE 0.36  HALT 0.00
+
+============================================================
+  FOMO = 0.5
+============================================================
+  DAICO:
+    Pool remaining:    42.82
+    Released:          41.42
+    Release efficiency:47.1%
+    Destroyed by vote: 4%
+    [D1] Gini coefficient:  0.488
+    [D1] Top 10% share:     39.4%
+    [D2] Whale dominance:   40.9%
+    [D3] Capital retention: 48.2%
+    [D3] ROI variance:      0.0000
+  RDA:
+    Total raised:      143.90
+    Tokens sold:       24.31
+    Participants:      30.0
+    [D1] Gini coefficient:  0.407
+    [D1] Top 10% share:     28.4%
+    [D2] Price volatility:  0.0311
+    [D2] Whale dominance:   29.4%
+    [D2] Timing corr:       0.023
+    [D3] ROI variance:      0.0890
+  [D1]=Allocation Efficiency  [D2]=Manipulation Resistance  [D3]=Incentive Alignment
+  LAF:
+    Pool remaining:    20.89
+    Released to team:  38.62
+    Exited (rage quit):24.73
+    Release efficiency:45.5%
+    Terminal (Rule 4): 2%
+    [D1] Gini coefficient:  0.685   (final shares; 0 when everyone has exited)
+    [D1] Gini of $ outcome: 0.498   (payout + held shares at end NAV)
+    [D1] Top 10% share:     51.2%
+    [D2] Whale dominance:   40.3%
+    [D2] Whale vote weight: 69.4%
+    [D2] Timing corr:       -0.993
+    [D3] Capital retention: 46.4%
+    [D3] ROI variance:      0.1198
+    [LAF] Investor recovery (quitters):    75.5%
+    [LAF] Investor recovery (all capital): 28.5%
+    [LAF] Team received:                   46.4%
+    [LAF] Rage-quit rate (agents):         38.3%   holders remaining: 18.5   end NAV/share: 0.411
+    [LAF] Checkpoints: 3.00  signal-triggered: 0.02  Rule-2 pauses: 0.52  paused days: 30.0  warning rounds: 0.10
+    [LAF] Outcomes/run: CONTINUE 2.50  INCREASE 0.22  DECREASE 0.02  PAUSE 0.26  HALT 0.00
+
+============================================================
+  FOMO = 0.7
+============================================================
+  DAICO:
+    Pool remaining:    42.37
+    Released:          45.05
+    Release efficiency:48.3%
+    Destroyed by vote: 10%
+    [D1] Gini coefficient:  0.489
+    [D1] Top 10% share:     39.6%
+    [D2] Whale dominance:   41.1%
+    [D3] Capital retention: 50.6%
+    [D3] ROI variance:      0.0000
+  RDA:
+    Total raised:      143.94
+    Tokens sold:       23.77
+    Participants:      30.0
+    [D1] Gini coefficient:  0.401
+    [D1] Top 10% share:     27.6%
+    [D2] Price volatility:  0.0311
+    [D2] Whale dominance:   28.4%
+    [D2] Timing corr:       0.038
+    [D3] ROI variance:      0.0904
+  [D1]=Allocation Efficiency  [D2]=Manipulation Resistance  [D3]=Incentive Alignment
+  LAF:
+    Pool remaining:    22.59
+    Released to team:  40.33
+    Exited (rage quit):24.50
+    Release efficiency:46.7%
+    Terminal (Rule 4): 0%
+    [D1] Gini coefficient:  0.675   (final shares; 0 when everyone has exited)
+    [D1] Gini of $ outcome: 0.499   (payout + held shares at end NAV)
+    [D1] Top 10% share:     50.1%
+    [D2] Whale dominance:   39.0%
+    [D2] Whale vote weight: 67.7%
+    [D2] Timing corr:       -0.992
+    [D3] Capital retention: 46.7%
+    [D3] ROI variance:      0.1178
+    [LAF] Investor recovery (quitters):    76.0%
+    [LAF] Investor recovery (all capital): 27.2%
+    [LAF] Team received:                   46.7%
+    [LAF] Rage-quit rate (agents):         36.5%   holders remaining: 19.0   end NAV/share: 0.414
+    [LAF] Checkpoints: 3.00  signal-triggered: 0.00  Rule-2 pauses: 0.50  paused days: 29.4  warning rounds: 0.00
+    [LAF] Outcomes/run: CONTINUE 2.54  INCREASE 0.30  DECREASE 0.00  PAUSE 0.16  HALT 0.00
+
+============================================================
+  FOMO=0.5 + Herding=0.3
+============================================================
+  DAICO:
+    Pool remaining:    39.02
+    Released:          46.93
+    Release efficiency:49.8%
+    Destroyed by vote: 22%
+    [D1] Gini coefficient:  0.487
+    [D1] Top 10% share:     39.2%
+    [D2] Whale dominance:   40.7%
+    [D3] Capital retention: 54.2%
+    [D3] ROI variance:      0.0000
+  RDA:
+    Total raised:      143.90
+    Tokens sold:       24.25
+    Participants:      30.0
+    [D1] Gini coefficient:  0.407
+    [D1] Top 10% share:     28.3%
+    [D2] Price volatility:  0.0311
+    [D2] Whale dominance:   29.3%
+    [D2] Timing corr:       0.020
+    [D3] ROI variance:      0.0911
+  [D1]=Allocation Efficiency  [D2]=Manipulation Resistance  [D3]=Incentive Alignment
+  LAF:
+    Pool remaining:    18.84
+    Released to team:  38.43
+    Exited (rage quit):28.67
+    Release efficiency:42.8%
+    Terminal (Rule 4): 6%
+    [D1] Gini coefficient:  0.716   (final shares; 0 when everyone has exited)
+    [D1] Gini of $ outcome: 0.475   (payout + held shares at end NAV)
+    [D1] Top 10% share:     54.7%
+    [D2] Whale dominance:   45.2%
+    [D2] Whale vote weight: 57.5%
+    [D2] Timing corr:       -0.992
+    [D3] Capital retention: 45.0%
+    [D3] ROI variance:      0.1252
+    [LAF] Investor recovery (quitters):    74.4%
+    [LAF] Investor recovery (all capital): 32.9%
+    [LAF] Team received:                   45.0%
+    [LAF] Rage-quit rate (agents):         51.6%   holders remaining: 14.5   end NAV/share: 0.390
+    [LAF] Checkpoints: 2.98  signal-triggered: 0.04  Rule-2 pauses: 0.54  paused days: 37.2  warning rounds: 0.24
+    [LAF] Outcomes/run: CONTINUE 2.30  INCREASE 0.24  DECREASE 0.00  PAUSE 0.44  HALT 0.00
+
+============================================================
+  FOMO=0.5 + Herding=0.6
+============================================================
+  DAICO:
+    Pool remaining:    29.53
+    Released:          58.11
+    Release efficiency:61.3%
+    Destroyed by vote: 20%
+    [D1] Gini coefficient:  0.486
+    [D1] Top 10% share:     38.9%
+    [D2] Whale dominance:   40.4%
+    [D3] Capital retention: 65.9%
+    [D3] ROI variance:      0.0000
+  RDA:
+    Total raised:      143.89
+    Tokens sold:       24.27
+    Participants:      30.0
+    [D1] Gini coefficient:  0.406
+    [D1] Top 10% share:     28.4%
+    [D2] Price volatility:  0.0311
+    [D2] Whale dominance:   29.2%
+    [D2] Timing corr:       0.022
+    [D3] ROI variance:      0.0911
+  [D1]=Allocation Efficiency  [D2]=Manipulation Resistance  [D3]=Incentive Alignment
+  LAF:
+    Pool remaining:    18.33
+    Released to team:  39.27
+    Exited (rage quit):30.04
+    Release efficiency:41.0%
+    Terminal (Rule 4): 10%
+    [D1] Gini coefficient:  0.702   (final shares; 0 when everyone has exited)
+    [D1] Gini of $ outcome: 0.473   (payout + held shares at end NAV)
+    [D1] Top 10% share:     54.4%
+    [D2] Whale dominance:   44.3%
+    [D2] Whale vote weight: 54.6%
+    [D2] Timing corr:       -0.991
+    [D3] Capital retention: 45.2%
+    [D3] ROI variance:      0.1503
+    [LAF] Investor recovery (quitters):    73.3%
+    [LAF] Investor recovery (all capital): 34.5%
+    [LAF] Team received:                   45.2%
+    [LAF] Rage-quit rate (agents):         56.8%   holders remaining: 13.0   end NAV/share: 0.361
+    [LAF] Checkpoints: 2.98  signal-triggered: 0.00  Rule-2 pauses: 0.66  paused days: 41.3  warning rounds: 0.10
+    [LAF] Outcomes/run: CONTINUE 2.24  INCREASE 0.34  DECREASE 0.00  PAUSE 0.40  HALT 0.00
+
+============================================================
+  High FOMO=0.7 + Herding=0.5
+============================================================
+  DAICO:
+    Pool remaining:    29.32
+    Released:          60.89
+    Release efficiency:64.4%
+    Destroyed by vote: 14%
+    [D1] Gini coefficient:  0.488
+    [D1] Top 10% share:     39.2%
+    [D2] Whale dominance:   40.7%
+    [D3] Capital retention: 67.1%
+    [D3] ROI variance:      0.0000
+  RDA:
+    Total raised:      143.93
+    Tokens sold:       23.74
+    Participants:      30.0
+    [D1] Gini coefficient:  0.400
+    [D1] Top 10% share:     27.6%
+    [D2] Price volatility:  0.0311
+    [D2] Whale dominance:   28.3%
+    [D2] Timing corr:       0.039
+    [D3] ROI variance:      0.0910
+  [D1]=Allocation Efficiency  [D2]=Manipulation Resistance  [D3]=Incentive Alignment
+  LAF:
+    Pool remaining:    20.78
+    Released to team:  40.27
+    Exited (rage quit):29.16
+    Release efficiency:43.4%
+    Terminal (Rule 4): 4%
+    [D1] Gini coefficient:  0.744   (final shares; 0 when everyone has exited)
+    [D1] Gini of $ outcome: 0.473   (payout + held shares at end NAV)
+    [D1] Top 10% share:     57.7%
+    [D2] Whale dominance:   46.6%
+    [D2] Whale vote weight: 55.9%
+    [D2] Timing corr:       -0.987
+    [D3] Capital retention: 45.1%
+    [D3] ROI variance:      0.1360
+    [LAF] Investor recovery (quitters):    73.2%
+    [LAF] Investor recovery (all capital): 32.2%
+    [LAF] Team received:                   45.1%
+    [LAF] Rage-quit rate (agents):         53.2%   holders remaining: 14.0   end NAV/share: 0.400
+    [LAF] Checkpoints: 3.00  signal-triggered: 0.02  Rule-2 pauses: 0.72  paused days: 41.0  warning rounds: 0.16
+    [LAF] Outcomes/run: CONTINUE 2.34  INCREASE 0.30  DECREASE 0.00  PAUSE 0.36  HALT 0.00
+
+------------------------------------------------------------------------------------------------------------------------
+  Summary Table (3 Shyam Dimensions)
+------------------------------------------------------------------------------------------------------------------------
+Scenario                       |     D1:AllocEff      |      D2:ManipResist       |    D3:IncentAlign   
+                               |   D_Gini   R_Gini |    R_Vol  D_Whale  R_Whale |   D_ROIv   R_ROIv
+------------------------------------------------------------------------------------------------------------------------
+Baseline (no behavioral effects) |    0.487    0.516 |   0.0311   40.5%   38.8% |   0.0000   0.0731
+FOMO = 0.3                     |    0.487    0.414 |   0.0311   40.8%   30.9% |   0.0000   0.0865
+FOMO = 0.5                     |    0.488    0.407 |   0.0311   40.9%   29.4% |   0.0000   0.0890
+FOMO = 0.7                     |    0.489    0.401 |   0.0311   41.1%   28.4% |   0.0000   0.0904
+FOMO=0.5 + Herding=0.3         |    0.487    0.407 |   0.0311   40.7%   29.3% |   0.0000   0.0911
+FOMO=0.5 + Herding=0.6         |    0.486    0.406 |   0.0311   40.4%   29.2% |   0.0000   0.0911
+High FOMO=0.7 + Herding=0.5    |    0.488    0.400 |   0.0311   40.7%   28.3% |   0.0000   0.0910
+
+------------------------------------------------------------------------------------------------------------------------------------------------------
+  Three-mechanism Table (v5): DAICO | RDA | LAF, one row per scenario
+------------------------------------------------------------------------------------------------------------------------------------------------------
+Scenario                       |          DAICO           |           RDA            |                            LAF                            
+                               |     Eff    Gini   Whale |    Gini   Whale  Partic | TeamRcv   Gini$   Whale  RecovQ   Quit%  Term%    CP   Sig
+------------------------------------------------------------------------------------------------------------------------------------------------------
+Baseline (no behavioral effects) |   33.2%   0.487   40.5% |   0.516   38.8%    24.4 |   43.4%   0.496   39.9%   74.5%   45.5%     8%  2.96  0.06
+FOMO = 0.3                     |   40.1%   0.487   40.8% |   0.414   30.9%    30.0 |   45.5%   0.498   39.8%   75.1%   39.7%     2%  3.00  0.04
+FOMO = 0.5                     |   47.1%   0.488   40.9% |   0.407   29.4%    30.0 |   46.4%   0.498   40.3%   75.5%   38.3%     2%  3.00  0.02
+FOMO = 0.7                     |   48.3%   0.489   41.1% |   0.401   28.4%    30.0 |   46.7%   0.499   39.0%   76.0%   36.5%     0%  3.00  0.00
+FOMO=0.5 + Herding=0.3         |   49.8%   0.487   40.7% |   0.407   29.3%    30.0 |   45.0%   0.475   45.2%   74.4%   51.6%     6%  2.98  0.04
+FOMO=0.5 + Herding=0.6         |   61.3%   0.486   40.4% |   0.406   29.2%    30.0 |   45.2%   0.473   44.3%   73.3%   56.8%    10%  2.98  0.00
+High FOMO=0.7 + Herding=0.5    |   64.4%   0.488   40.7% |   0.400   28.3%    30.0 |   45.1%   0.473   46.6%   73.2%   53.2%     4%  3.00  0.02
+  Gini$ = Gini of dollar outcome (rage-quit payout + held shares at end NAV); comparable with DAICO Gini,
+  whose tokens are 1:1 dollars. Whale = whale share of remaining shares (0 when everyone has exited).
+
+############################################################
+# small_project profile (Solana/Gnosis/Abyss-scale, calibrated)
+############################################################
+
+============================================================
+  Baseline (no behavioral effects)
+============================================================
+  DAICO:
+    Pool remaining:    42762.88
+    Released:          17971.06
+    Release efficiency:23.2%
+    Destroyed by vote: 34%
+    [D1] Gini coefficient:  0.477
+    [D1] Top 10% share:     37.6%
+    [D2] Whale dominance:   38.3%
+    [D3] Capital retention: 29.2%
+    [D3] ROI variance:      0.0000
+  RDA:
+    Total raised:      91506.33
+    Tokens sold:       19411.17
+    Participants:      16.2
+    [D1] Gini coefficient:  0.544
+    [D1] Top 10% share:     38.7%
+    [D2] Price volatility:  0.0276
+    [D2] Whale dominance:   43.5%
+    [D2] Timing corr:       -0.115
+    [D3] ROI variance:      0.0513
+  [D1]=Allocation Efficiency  [D2]=Manipulation Resistance  [D3]=Incentive Alignment
+  LAF:
+    Pool remaining:    25898.62
+    Released to team:  22835.56
+    Exited (rage quit):11999.77
+    Release efficiency:37.4%
+    Terminal (Rule 4): 2%
+    [D1] Gini coefficient:  0.607   (final shares; 0 when everyone has exited)
+    [D1] Gini of $ outcome: 0.476   (payout + held shares at end NAV)
+    [D1] Top 10% share:     46.3%
+    [D2] Whale dominance:   40.3%
+    [D2] Whale vote weight: 79.8%
+    [D2] Timing corr:       -0.996
+    [D3] Capital retention: 38.0%
+    [D3] ROI variance:      0.0383
+    [LAF] Investor recovery (quitters):    74.7%
+    [LAF] Investor recovery (all capital): 18.8%
+    [LAF] Team received:                   38.0%
+    [LAF] Rage-quit rate (agents):         26.7%   holders remaining: 14.7   end NAV/share: 0.572
+    [LAF] Checkpoints: 1.00  signal-triggered: 0.08  Rule-2 pauses: 0.14  paused days: 7.0  warning rounds: 0.28
+    [LAF] Outcomes/run: CONTINUE 0.88  INCREASE 0.00  DECREASE 0.00  PAUSE 0.12  HALT 0.00
+
+============================================================
+  FOMO = 0.3
+============================================================
+  DAICO:
+    Pool remaining:    42263.99
+    Released:          22408.76
+    Release efficiency:28.8%
+    Destroyed by vote: 26%
+    [D1] Gini coefficient:  0.477
+    [D1] Top 10% share:     37.7%
+    [D2] Whale dominance:   38.6%
+    [D3] Capital retention: 33.9%
+    [D3] ROI variance:      0.0000
+  RDA:
+    Total raised:      101827.43
+    Tokens sold:       18819.20
+    Participants:      20.0
+    [D1] Gini coefficient:  0.445
+    [D1] Top 10% share:     33.4%
+    [D2] Price volatility:  0.0276
+    [D2] Whale dominance:   37.0%
+    [D2] Timing corr:       -0.108
+    [D3] ROI variance:      0.0623
+  [D1]=Allocation Efficiency  [D2]=Manipulation Resistance  [D3]=Incentive Alignment
+  LAF:
+    Pool remaining:    28983.09
+    Released to team:  24711.28
+    Exited (rage quit):10978.39
+    Release efficiency:38.4%
+    Terminal (Rule 4): 0%
+    [D1] Gini coefficient:  0.605   (final shares; 0 when everyone has exited)
+    [D1] Gini of $ outcome: 0.476   (payout + held shares at end NAV)
+    [D1] Top 10% share:     45.6%
+    [D2] Whale dominance:   40.3%
+    [D2] Whale vote weight: 78.5%
+    [D2] Timing corr:       -0.980
+    [D3] Capital retention: 38.4%
+    [D3] ROI variance:      0.0374
+    [LAF] Investor recovery (quitters):    75.3%
+    [LAF] Investor recovery (all capital): 16.4%
+    [LAF] Team received:                   38.4%
+    [LAF] Rage-quit rate (agents):         23.0%   holders remaining: 15.4   end NAV/share: 0.582
+    [LAF] Checkpoints: 1.00  signal-triggered: 0.04  Rule-2 pauses: 0.10  paused days: 5.6  warning rounds: 0.16
+    [LAF] Outcomes/run: CONTINUE 0.88  INCREASE 0.02  DECREASE 0.00  PAUSE 0.10  HALT 0.00
+
+============================================================
+  FOMO = 0.5
+============================================================
+  DAICO:
+    Pool remaining:    44454.57
+    Released:          22844.05
+    Release efficiency:27.9%
+    Destroyed by vote: 26%
+    [D1] Gini coefficient:  0.477
+    [D1] Top 10% share:     37.9%
+    [D2] Whale dominance:   38.7%
+    [D3] Capital retention: 33.4%
+    [D3] ROI variance:      0.0000
+  RDA:
+    Total raised:      103038.27
+    Tokens sold:       18043.69
+    Participants:      20.0
+    [D1] Gini coefficient:  0.432
+    [D1] Top 10% share:     31.6%
+    [D2] Price volatility:  0.0276
+    [D2] Whale dominance:   35.2%
+    [D2] Timing corr:       -0.123
+    [D3] ROI variance:      0.0678
+  [D1]=Allocation Efficiency  [D2]=Manipulation Resistance  [D3]=Incentive Alignment
+  LAF:
+    Pool remaining:    30408.59
+    Released to team:  25724.72
+    Exited (rage quit):11165.31
+    Release efficiency:38.4%
+    Terminal (Rule 4): 0%
+    [D1] Gini coefficient:  0.606   (final shares; 0 when everyone has exited)
+    [D1] Gini of $ outcome: 0.475   (payout + held shares at end NAV)
+    [D1] Top 10% share:     45.9%
+    [D2] Whale dominance:   40.4%
+    [D2] Whale vote weight: 76.7%
+    [D2] Timing corr:       -0.994
+    [D3] Capital retention: 38.4%
+    [D3] ROI variance:      0.0357
+    [LAF] Investor recovery (quitters):    74.8%
+    [LAF] Investor recovery (all capital): 16.0%
+    [LAF] Team received:                   38.4%
+    [LAF] Rage-quit rate (agents):         23.0%   holders remaining: 15.4   end NAV/share: 0.585
+    [LAF] Checkpoints: 1.00  signal-triggered: 0.04  Rule-2 pauses: 0.12  paused days: 5.6  warning rounds: 0.16
+    [LAF] Outcomes/run: CONTINUE 0.88  INCREASE 0.02  DECREASE 0.00  PAUSE 0.10  HALT 0.00
+
+============================================================
+  FOMO = 0.7
+============================================================
+  DAICO:
+    Pool remaining:    44396.79
+    Released:          25448.71
+    Release efficiency:32.8%
+    Destroyed by vote: 16%
+    [D1] Gini coefficient:  0.478
+    [D1] Top 10% share:     38.0%
+    [D2] Whale dominance:   38.9%
+    [D3] Capital retention: 35.9%
+    [D3] ROI variance:      0.0000
+  RDA:
+    Total raised:      104035.11
+    Tokens sold:       17386.27
+    Participants:      20.0
+    [D1] Gini coefficient:  0.425
+    [D1] Top 10% share:     30.7%
+    [D2] Price volatility:  0.0276
+    [D2] Whale dominance:   34.0%
+    [D2] Timing corr:       -0.126
+    [D3] ROI variance:      0.0716
+  [D1]=Allocation Efficiency  [D2]=Manipulation Resistance  [D3]=Incentive Alignment
+  LAF:
+    Pool remaining:    31549.94
+    Released to team:  26959.32
+    Exited (rage quit):11336.24
+    Release efficiency:38.8%
+    Terminal (Rule 4): 0%
+    [D1] Gini coefficient:  0.601   (final shares; 0 when everyone has exited)
+    [D1] Gini of $ outcome: 0.475   (payout + held shares at end NAV)
+    [D1] Top 10% share:     45.7%
+    [D2] Whale dominance:   40.2%
+    [D2] Whale vote weight: 75.9%
+    [D2] Timing corr:       -0.998
+    [D3] Capital retention: 38.8%
+    [D3] ROI variance:      0.0340
+    [LAF] Investor recovery (quitters):    75.0%
+    [LAF] Investor recovery (all capital): 15.5%
+    [LAF] Team received:                   38.8%
+    [LAF] Rage-quit rate (agents):         22.2%   holders remaining: 15.6   end NAV/share: 0.583
+    [LAF] Checkpoints: 1.00  signal-triggered: 0.06  Rule-2 pauses: 0.12  paused days: 4.5  warning rounds: 0.24
+    [LAF] Outcomes/run: CONTINUE 0.92  INCREASE 0.02  DECREASE 0.00  PAUSE 0.06  HALT 0.00
+
+============================================================
+  FOMO=0.5 + Herding=0.3
+============================================================
+  DAICO:
+    Pool remaining:    41395.51
+    Released:          27184.86
+    Release efficiency:37.7%
+    Destroyed by vote: 12%
+    [D1] Gini coefficient:  0.476
+    [D1] Top 10% share:     37.7%
+    [D2] Whale dominance:   38.5%
+    [D3] Capital retention: 39.5%
+    [D3] ROI variance:      0.0000
+  RDA:
+    Total raised:      103432.15
+    Tokens sold:       17954.53
+    Participants:      20.0
+    [D1] Gini coefficient:  0.432
+    [D1] Top 10% share:     31.6%
+    [D2] Price volatility:  0.0276
+    [D2] Whale dominance:   35.1%
+    [D2] Timing corr:       -0.129
+    [D3] ROI variance:      0.0688
+  [D1]=Allocation Efficiency  [D2]=Manipulation Resistance  [D3]=Incentive Alignment
+  LAF:
+    Pool remaining:    31154.93
+    Released to team:  26145.83
+    Exited (rage quit):11279.61
+    Release efficiency:37.8%
+    Terminal (Rule 4): 2%
+    [D1] Gini coefficient:  0.602   (final shares; 0 when everyone has exited)
+    [D1] Gini of $ outcome: 0.470   (payout + held shares at end NAV)
+    [D1] Top 10% share:     44.8%
+    [D2] Whale dominance:   40.8%
+    [D2] Whale vote weight: 61.7%
+    [D2] Timing corr:       -0.961
+    [D3] Capital retention: 38.4%
+    [D3] ROI variance:      0.0362
+    [LAF] Investor recovery (quitters):    76.1%
+    [LAF] Investor recovery (all capital): 15.7%
+    [LAF] Team received:                   38.4%
+    [LAF] Rage-quit rate (agents):         26.3%   holders remaining: 14.7   end NAV/share: 0.572
+    [LAF] Checkpoints: 1.00  signal-triggered: 0.02  Rule-2 pauses: 0.12  paused days: 6.2  warning rounds: 0.08
+    [LAF] Outcomes/run: CONTINUE 0.80  INCREASE 0.08  DECREASE 0.00  PAUSE 0.12  HALT 0.00
+
+============================================================
+  FOMO=0.5 + Herding=0.6
+============================================================
+  DAICO:
+    Pool remaining:    39081.06
+    Released:          30766.25
+    Release efficiency:41.6%
+    Destroyed by vote: 14%
+    [D1] Gini coefficient:  0.475
+    [D1] Top 10% share:     37.6%
+    [D2] Whale dominance:   38.3%
+    [D3] Capital retention: 44.4%
+    [D3] ROI variance:      0.0000
+  RDA:
+    Total raised:      103241.20
+    Tokens sold:       17923.24
+    Participants:      20.0
+    [D1] Gini coefficient:  0.433
+    [D1] Top 10% share:     31.5%
+    [D2] Price volatility:  0.0276
+    [D2] Whale dominance:   35.0%
+    [D2] Timing corr:       -0.133
+    [D3] ROI variance:      0.0688
+  [D1]=Allocation Efficiency  [D2]=Manipulation Resistance  [D3]=Incentive Alignment
+  LAF:
+    Pool remaining:    29685.59
+    Released to team:  26288.06
+    Exited (rage quit):13873.66
+    Release efficiency:35.4%
+    Terminal (Rule 4): 8%
+    [D1] Gini coefficient:  0.596   (final shares; 0 when everyone has exited)
+    [D1] Gini of $ outcome: 0.468   (payout + held shares at end NAV)
+    [D1] Top 10% share:     44.9%
+    [D2] Whale dominance:   39.3%
+    [D2] Whale vote weight: 60.6%
+    [D2] Timing corr:       -0.974
+    [D3] Capital retention: 37.8%
+    [D3] ROI variance:      0.0469
+    [LAF] Investor recovery (quitters):    75.8%
+    [LAF] Investor recovery (all capital): 19.8%
+    [LAF] Team received:                   37.8%
+    [LAF] Rage-quit rate (agents):         32.9%   holders remaining: 13.4   end NAV/share: 0.545
+    [LAF] Checkpoints: 1.00  signal-triggered: 0.08  Rule-2 pauses: 0.18  paused days: 8.3  warning rounds: 0.24
+    [LAF] Outcomes/run: CONTINUE 0.80  INCREASE 0.08  DECREASE 0.00  PAUSE 0.12  HALT 0.00
+
+============================================================
+  High FOMO=0.7 + Herding=0.5
+============================================================
+  DAICO:
+    Pool remaining:    41390.48
+    Released:          30544.35
+    Release efficiency:38.3%
+    Destroyed by vote: 18%
+    [D1] Gini coefficient:  0.477
+    [D1] Top 10% share:     37.8%
+    [D2] Whale dominance:   38.6%
+    [D3] Capital retention: 42.6%
+    [D3] ROI variance:      0.0000
+  RDA:
+    Total raised:      103910.08
+    Tokens sold:       17391.38
+    Participants:      20.0
+    [D1] Gini coefficient:  0.424
+    [D1] Top 10% share:     30.5%
+    [D2] Price volatility:  0.0276
+    [D2] Whale dominance:   33.8%
+    [D2] Timing corr:       -0.146
+    [D3] ROI variance:      0.0723
+  [D1]=Allocation Efficiency  [D2]=Manipulation Resistance  [D3]=Incentive Alignment
+  LAF:
+    Pool remaining:    31369.35
+    Released to team:  27992.84
+    Exited (rage quit):12572.64
+    Release efficiency:37.8%
+    Terminal (Rule 4): 4%
+    [D1] Gini coefficient:  0.605   (final shares; 0 when everyone has exited)
+    [D1] Gini of $ outcome: 0.469   (payout + held shares at end NAV)
+    [D1] Top 10% share:     45.0%
+    [D2] Whale dominance:   40.6%
+    [D2] Whale vote weight: 58.1%
+    [D2] Timing corr:       -0.995
+    [D3] Capital retention: 39.1%
+    [D3] ROI variance:      0.0472
+    [LAF] Investor recovery (quitters):    76.1%
+    [LAF] Investor recovery (all capital): 17.4%
+    [LAF] Team received:                   39.1%
+    [LAF] Rage-quit rate (agents):         30.6%   holders remaining: 13.9   end NAV/share: 0.545
+    [LAF] Checkpoints: 1.00  signal-triggered: 0.06  Rule-2 pauses: 0.12  paused days: 3.9  warning rounds: 0.20
+    [LAF] Outcomes/run: CONTINUE 0.86  INCREASE 0.08  DECREASE 0.00  PAUSE 0.06  HALT 0.00
+
+------------------------------------------------------------------------------------------------------------------------
+  Summary Table (3 Shyam Dimensions)
+------------------------------------------------------------------------------------------------------------------------
+Scenario                       |     D1:AllocEff      |      D2:ManipResist       |    D3:IncentAlign   
+                               |   D_Gini   R_Gini |    R_Vol  D_Whale  R_Whale |   D_ROIv   R_ROIv
+------------------------------------------------------------------------------------------------------------------------
+Baseline (no behavioral effects) |    0.477    0.544 |   0.0276   38.3%   43.5% |   0.0000   0.0513
+FOMO = 0.3                     |    0.477    0.445 |   0.0276   38.6%   37.0% |   0.0000   0.0623
+FOMO = 0.5                     |    0.477    0.432 |   0.0276   38.7%   35.2% |   0.0000   0.0678
+FOMO = 0.7                     |    0.478    0.425 |   0.0276   38.9%   34.0% |   0.0000   0.0716
+FOMO=0.5 + Herding=0.3         |    0.476    0.432 |   0.0276   38.5%   35.1% |   0.0000   0.0688
+FOMO=0.5 + Herding=0.6         |    0.475    0.433 |   0.0276   38.3%   35.0% |   0.0000   0.0688
+High FOMO=0.7 + Herding=0.5    |    0.477    0.424 |   0.0276   38.6%   33.8% |   0.0000   0.0723
+
+------------------------------------------------------------------------------------------------------------------------------------------------------
+  Three-mechanism Table (v5): DAICO | RDA | LAF, one row per scenario
+------------------------------------------------------------------------------------------------------------------------------------------------------
+Scenario                       |          DAICO           |           RDA            |                            LAF                            
+                               |     Eff    Gini   Whale |    Gini   Whale  Partic | TeamRcv   Gini$   Whale  RecovQ   Quit%  Term%    CP   Sig
+------------------------------------------------------------------------------------------------------------------------------------------------------
+Baseline (no behavioral effects) |   23.2%   0.477   38.3% |   0.544   43.5%    16.2 |   38.0%   0.476   40.3%   74.7%   26.7%     2%  1.00  0.08
+FOMO = 0.3                     |   28.8%   0.477   38.6% |   0.445   37.0%    20.0 |   38.4%   0.476   40.3%   75.3%   23.0%     0%  1.00  0.04
+FOMO = 0.5                     |   27.9%   0.477   38.7% |   0.432   35.2%    20.0 |   38.4%   0.475   40.4%   74.8%   23.0%     0%  1.00  0.04
+FOMO = 0.7                     |   32.8%   0.478   38.9% |   0.425   34.0%    20.0 |   38.8%   0.475   40.2%   75.0%   22.2%     0%  1.00  0.06
+FOMO=0.5 + Herding=0.3         |   37.7%   0.476   38.5% |   0.432   35.1%    20.0 |   38.4%   0.470   40.8%   76.1%   26.3%     2%  1.00  0.02
+FOMO=0.5 + Herding=0.6         |   41.6%   0.475   38.3% |   0.433   35.0%    20.0 |   37.8%   0.468   39.3%   75.8%   32.9%     8%  1.00  0.08
+High FOMO=0.7 + Herding=0.5    |   38.3%   0.477   38.6% |   0.424   33.8%    20.0 |   39.1%   0.469   40.6%   76.1%   30.6%     4%  1.00  0.06
+  Gini$ = Gini of dollar outcome (rage-quit payout + held shares at end NAV); comparable with DAICO Gini,
+  whose tokens are 1:1 dollars. Whale = whale share of remaining shares (0 when everyone has exited).
+
+############################################################
+# large_project profile (Casper/Mina/Flow/Algorand-scale, calibrated)
+############################################################
+
+============================================================
+  Baseline (no behavioral effects)
+============================================================
+  DAICO:
+    Pool remaining:    150359.53
+    Released:          135529.30
+    Release efficiency:47.4%
+    Destroyed by vote: 0%
+    [D1] Gini coefficient:  0.519
+    [D1] Top 10% share:     42.9%
+    [D2] Whale dominance:   43.7%
+    [D3] Capital retention: 47.4%
+    [D3] ROI variance:      0.0000
+  RDA:
+    Total raised:      474438.64
+    Tokens sold:       89730.96
+    Participants:      271.8
+    [D1] Gini coefficient:  0.564
+    [D1] Top 10% share:     42.9%
+    [D2] Price volatility:  0.0074
+    [D2] Whale dominance:   43.1%
+    [D2] Timing corr:       0.057
+    [D3] ROI variance:      0.0571
+  [D1]=Allocation Efficiency  [D2]=Manipulation Resistance  [D3]=Incentive Alignment
+  LAF:
+    Pool remaining:    0.00
+    Released to team:  140764.65
+    Exited (rage quit):145124.18
+    Release efficiency:0.0%
+    Terminal (Rule 4): 100%
+    [D1] Gini coefficient:  0.000   (final shares; 0 when everyone has exited)
+    [D1] Gini of $ outcome: 0.648   (payout + held shares at end NAV)
+    [D1] Top 10% share:     0.0%
+    [D2] Whale dominance:   0.0%
+    [D2] Whale vote weight: 59.7%
+    [D2] Timing corr:       -0.991
+    [D3] Capital retention: 49.3%
+    [D3] ROI variance:      0.2232
+    [LAF] Investor recovery (quitters):    50.7%
+    [LAF] Investor recovery (all capital): 50.7%
+    [LAF] Team received:                   49.3%
+    [LAF] Rage-quit rate (agents):         100.0%   holders remaining: 0.0   end NAV/share: 0.000
+    [LAF] Checkpoints: 3.84  signal-triggered: 0.00  Rule-2 pauses: 0.78  paused days: 43.7  warning rounds: 0.00
+    [LAF] Outcomes/run: CONTINUE 2.76  INCREASE 1.08  DECREASE 0.00  PAUSE 0.00  HALT 0.00
+
+============================================================
+  FOMO = 0.3
+============================================================
+  DAICO:
+    Pool remaining:    160142.98
+    Released:          144347.79
+    Release efficiency:47.4%
+    Destroyed by vote: 0%
+    [D1] Gini coefficient:  0.519
+    [D1] Top 10% share:     43.2%
+    [D2] Whale dominance:   43.9%
+    [D3] Capital retention: 47.4%
+    [D3] ROI variance:      0.0000
+  RDA:
+    Total raised:      512923.53
+    Tokens sold:       80469.52
+    Participants:      340.0
+    [D1] Gini coefficient:  0.442
+    [D1] Top 10% share:     32.2%
+    [D2] Price volatility:  0.0074
+    [D2] Whale dominance:   31.9%
+    [D2] Timing corr:       0.000
+    [D3] ROI variance:      0.0662
+  [D1]=Allocation Efficiency  [D2]=Manipulation Resistance  [D3]=Incentive Alignment
+  LAF:
+    Pool remaining:    0.00
+    Released to team:  159368.04
+    Exited (rage quit):145122.74
+    Release efficiency:0.0%
+    Terminal (Rule 4): 100%
+    [D1] Gini coefficient:  0.000   (final shares; 0 when everyone has exited)
+    [D1] Gini of $ outcome: 0.647   (payout + held shares at end NAV)
+    [D1] Top 10% share:     0.0%
+    [D2] Whale dominance:   0.0%
+    [D2] Whale vote weight: 56.9%
+    [D2] Timing corr:       -0.994
+    [D3] Capital retention: 52.4%
+    [D3] ROI variance:      0.2125
+    [LAF] Investor recovery (quitters):    47.6%
+    [LAF] Investor recovery (all capital): 47.6%
+    [LAF] Team received:                   52.4%
+    [LAF] Rage-quit rate (agents):         100.0%   holders remaining: 0.0   end NAV/share: 0.000
+    [LAF] Checkpoints: 3.98  signal-triggered: 0.00  Rule-2 pauses: 0.48  paused days: 26.9  warning rounds: 0.00
+    [LAF] Outcomes/run: CONTINUE 2.82  INCREASE 1.16  DECREASE 0.00  PAUSE 0.00  HALT 0.00
+
+============================================================
+  FOMO = 0.5
+============================================================
+  DAICO:
+    Pool remaining:    166665.29
+    Released:          150226.79
+    Release efficiency:47.4%
+    Destroyed by vote: 0%
+    [D1] Gini coefficient:  0.520
+    [D1] Top 10% share:     43.4%
+    [D2] Whale dominance:   44.1%
+    [D3] Capital retention: 47.4%
+    [D3] ROI variance:      0.0000
+  RDA:
+    Total raised:      512931.27
+    Tokens sold:       78504.03
+    Participants:      340.0
+    [D1] Gini coefficient:  0.435
+    [D1] Top 10% share:     31.0%
+    [D2] Price volatility:  0.0074
+    [D2] Whale dominance:   30.6%
+    [D2] Timing corr:       0.016
+    [D3] ROI variance:      0.0681
+  [D1]=Allocation Efficiency  [D2]=Manipulation Resistance  [D3]=Incentive Alignment
+  LAF:
+    Pool remaining:    0.00
+    Released to team:  172729.87
+    Exited (rage quit):144162.21
+    Release efficiency:0.0%
+    Terminal (Rule 4): 100%
+    [D1] Gini coefficient:  0.000   (final shares; 0 when everyone has exited)
+    [D1] Gini of $ outcome: 0.646   (payout + held shares at end NAV)
+    [D1] Top 10% share:     0.0%
+    [D2] Whale dominance:   0.0%
+    [D2] Whale vote weight: 56.7%
+    [D2] Timing corr:       -0.995
+    [D3] Capital retention: 54.6%
+    [D3] ROI variance:      0.2062
+    [LAF] Investor recovery (quitters):    45.4%
+    [LAF] Investor recovery (all capital): 45.4%
+    [LAF] Team received:                   54.6%
+    [LAF] Rage-quit rate (agents):         100.0%   holders remaining: 0.0   end NAV/share: 0.000
+    [LAF] Checkpoints: 3.96  signal-triggered: 0.00  Rule-2 pauses: 0.22  paused days: 12.3  warning rounds: 0.02
+    [LAF] Outcomes/run: CONTINUE 2.74  INCREASE 1.22  DECREASE 0.00  PAUSE 0.00  HALT 0.00
+
+============================================================
+  FOMO = 0.7
+============================================================
+  DAICO:
+    Pool remaining:    172993.61
+    Released:          155930.94
+    Release efficiency:47.4%
+    Destroyed by vote: 0%
+    [D1] Gini coefficient:  0.521
+    [D1] Top 10% share:     43.6%
+    [D2] Whale dominance:   44.3%
+    [D3] Capital retention: 47.4%
+    [D3] ROI variance:      0.0000
+  RDA:
+    Total raised:      512932.24
+    Tokens sold:       77715.74
+    Participants:      340.0
+    [D1] Gini coefficient:  0.432
+    [D1] Top 10% share:     30.6%
+    [D2] Price volatility:  0.0074
+    [D2] Whale dominance:   30.1%
+    [D2] Timing corr:       0.024
+    [D3] ROI variance:      0.0689
+  [D1]=Allocation Efficiency  [D2]=Manipulation Resistance  [D3]=Incentive Alignment
+  LAF:
+    Pool remaining:    0.00
+    Released to team:  189781.57
+    Exited (rage quit):139142.99
+    Release efficiency:0.0%
+    Terminal (Rule 4): 100%
+    [D1] Gini coefficient:  0.000   (final shares; 0 when everyone has exited)
+    [D1] Gini of $ outcome: 0.644   (payout + held shares at end NAV)
+    [D1] Top 10% share:     0.0%
+    [D2] Whale dominance:   0.0%
+    [D2] Whale vote weight: 56.1%
+    [D2] Timing corr:       -0.996
+    [D3] Capital retention: 57.8%
+    [D3] ROI variance:      0.2030
+    [LAF] Investor recovery (quitters):    42.2%
+    [LAF] Investor recovery (all capital): 42.2%
+    [LAF] Team received:                   57.8%
+    [LAF] Rage-quit rate (agents):         100.0%   holders remaining: 0.0   end NAV/share: 0.000
+    [LAF] Checkpoints: 4.00  signal-triggered: 0.00  Rule-2 pauses: 0.04  paused days: 2.2  warning rounds: 0.02
+    [LAF] Outcomes/run: CONTINUE 2.72  INCREASE 1.28  DECREASE 0.00  PAUSE 0.00  HALT 0.00
+
+============================================================
+  FOMO=0.5 + Herding=0.3
+============================================================
+  DAICO:
+    Pool remaining:    170148.78
+    Released:          153366.70
+    Release efficiency:47.4%
+    Destroyed by vote: 0%
+    [D1] Gini coefficient:  0.519
+    [D1] Top 10% share:     43.1%
+    [D2] Whale dominance:   43.8%
+    [D3] Capital retention: 47.4%
+    [D3] ROI variance:      0.0000
+  RDA:
+    Total raised:      512925.24
+    Tokens sold:       78451.45
+    Participants:      340.0
+    [D1] Gini coefficient:  0.435
+    [D1] Top 10% share:     31.0%
+    [D2] Price volatility:  0.0074
+    [D2] Whale dominance:   30.6%
+    [D2] Timing corr:       0.016
+    [D3] ROI variance:      0.0683
+  [D1]=Allocation Efficiency  [D2]=Manipulation Resistance  [D3]=Incentive Alignment
+  LAF:
+    Pool remaining:    0.00
+    Released to team:  160819.97
+    Exited (rage quit):162695.51
+    Release efficiency:0.0%
+    Terminal (Rule 4): 100%
+    [D1] Gini coefficient:  0.000   (final shares; 0 when everyone has exited)
+    [D1] Gini of $ outcome: 0.585   (payout + held shares at end NAV)
+    [D1] Top 10% share:     0.0%
+    [D2] Whale dominance:   0.0%
+    [D2] Whale vote weight: 46.5%
+    [D2] Timing corr:       -0.993
+    [D3] Capital retention: 49.8%
+    [D3] ROI variance:      0.1996
+    [LAF] Investor recovery (quitters):    50.2%
+    [LAF] Investor recovery (all capital): 50.2%
+    [LAF] Team received:                   49.8%
+    [LAF] Rage-quit rate (agents):         100.0%   holders remaining: 0.0   end NAV/share: 0.000
+    [LAF] Checkpoints: 3.98  signal-triggered: 0.00  Rule-2 pauses: 0.60  paused days: 33.6  warning rounds: 0.04
+    [LAF] Outcomes/run: CONTINUE 3.22  INCREASE 0.76  DECREASE 0.00  PAUSE 0.00  HALT 0.00
+
+============================================================
+  FOMO=0.5 + Herding=0.6
+============================================================
+  DAICO:
+    Pool remaining:    171538.29
+    Released:          158504.90
+    Release efficiency:48.0%
+    Destroyed by vote: 0%
+    [D1] Gini coefficient:  0.518
+    [D1] Top 10% share:     42.8%
+    [D2] Whale dominance:   43.5%
+    [D3] Capital retention: 48.0%
+    [D3] ROI variance:      0.0000
+  RDA:
+    Total raised:      512929.39
+    Tokens sold:       78478.65
+    Participants:      340.0
+    [D1] Gini coefficient:  0.436
+    [D1] Top 10% share:     31.0%
+    [D2] Price volatility:  0.0074
+    [D2] Whale dominance:   30.6%
+    [D2] Timing corr:       0.016
+    [D3] ROI variance:      0.0683
+  [D1]=Allocation Efficiency  [D2]=Manipulation Resistance  [D3]=Incentive Alignment
+  LAF:
+    Pool remaining:    0.00
+    Released to team:  162023.51
+    Exited (rage quit):168019.68
+    Release efficiency:0.0%
+    Terminal (Rule 4): 100%
+    [D1] Gini coefficient:  0.000   (final shares; 0 when everyone has exited)
+    [D1] Gini of $ outcome: 0.568   (payout + held shares at end NAV)
+    [D1] Top 10% share:     0.0%
+    [D2] Whale dominance:   0.0%
+    [D2] Whale vote weight: 50.0%
+    [D2] Timing corr:       -0.992
+    [D3] Capital retention: 49.2%
+    [D3] ROI variance:      0.2355
+    [LAF] Investor recovery (quitters):    50.8%
+    [LAF] Investor recovery (all capital): 50.8%
+    [LAF] Team received:                   49.2%
+    [LAF] Rage-quit rate (agents):         100.0%   holders remaining: 0.0   end NAV/share: 0.000
+    [LAF] Checkpoints: 3.84  signal-triggered: 0.00  Rule-2 pauses: 0.66  paused days: 37.0  warning rounds: 0.00
+    [LAF] Outcomes/run: CONTINUE 3.02  INCREASE 0.82  DECREASE 0.00  PAUSE 0.00  HALT 0.00
+
+============================================================
+  High FOMO=0.7 + Herding=0.5
+============================================================
+  DAICO:
+    Pool remaining:    176922.53
+    Released:          162784.01
+    Release efficiency:47.9%
+    Destroyed by vote: 0%
+    [D1] Gini coefficient:  0.520
+    [D1] Top 10% share:     43.2%
+    [D2] Whale dominance:   43.8%
+    [D3] Capital retention: 47.9%
+    [D3] ROI variance:      0.0000
+  RDA:
+    Total raised:      512934.42
+    Tokens sold:       77707.34
+    Participants:      340.0
+    [D1] Gini coefficient:  0.432
+    [D1] Top 10% share:     30.5%
+    [D2] Price volatility:  0.0074
+    [D2] Whale dominance:   30.1%
+    [D2] Timing corr:       0.025
+    [D3] ROI variance:      0.0690
+  [D1]=Allocation Efficiency  [D2]=Manipulation Resistance  [D3]=Incentive Alignment
+  LAF:
+    Pool remaining:    0.00
+    Released to team:  173528.87
+    Exited (rage quit):166177.66
+    Release efficiency:0.0%
+    Terminal (Rule 4): 100%
+    [D1] Gini coefficient:  0.000   (final shares; 0 when everyone has exited)
+    [D1] Gini of $ outcome: 0.569   (payout + held shares at end NAV)
+    [D1] Top 10% share:     0.0%
+    [D2] Whale dominance:   0.0%
+    [D2] Whale vote weight: 47.8%
+    [D2] Timing corr:       -0.993
+    [D3] Capital retention: 51.1%
+    [D3] ROI variance:      0.2195
+    [LAF] Investor recovery (quitters):    48.9%
+    [LAF] Investor recovery (all capital): 48.9%
+    [LAF] Team received:                   51.1%
+    [LAF] Rage-quit rate (agents):         100.0%   holders remaining: 0.0   end NAV/share: 0.000
+    [LAF] Checkpoints: 3.98  signal-triggered: 0.00  Rule-2 pauses: 0.48  paused days: 26.9  warning rounds: 0.00
+    [LAF] Outcomes/run: CONTINUE 3.18  INCREASE 0.80  DECREASE 0.00  PAUSE 0.00  HALT 0.00
+
+------------------------------------------------------------------------------------------------------------------------
+  Summary Table (3 Shyam Dimensions)
+------------------------------------------------------------------------------------------------------------------------
+Scenario                       |     D1:AllocEff      |      D2:ManipResist       |    D3:IncentAlign   
+                               |   D_Gini   R_Gini |    R_Vol  D_Whale  R_Whale |   D_ROIv   R_ROIv
+------------------------------------------------------------------------------------------------------------------------
+Baseline (no behavioral effects) |    0.519    0.564 |   0.0074   43.7%   43.1% |   0.0000   0.0571
+FOMO = 0.3                     |    0.519    0.442 |   0.0074   43.9%   31.9% |   0.0000   0.0662
+FOMO = 0.5                     |    0.520    0.435 |   0.0074   44.1%   30.6% |   0.0000   0.0681
+FOMO = 0.7                     |    0.521    0.432 |   0.0074   44.3%   30.1% |   0.0000   0.0689
+FOMO=0.5 + Herding=0.3         |    0.519    0.435 |   0.0074   43.8%   30.6% |   0.0000   0.0683
+FOMO=0.5 + Herding=0.6         |    0.518    0.436 |   0.0074   43.5%   30.6% |   0.0000   0.0683
+High FOMO=0.7 + Herding=0.5    |    0.520    0.432 |   0.0074   43.8%   30.1% |   0.0000   0.0690
+
+------------------------------------------------------------------------------------------------------------------------------------------------------
+  Three-mechanism Table (v5): DAICO | RDA | LAF, one row per scenario
+------------------------------------------------------------------------------------------------------------------------------------------------------
+Scenario                       |          DAICO           |           RDA            |                            LAF                            
+                               |     Eff    Gini   Whale |    Gini   Whale  Partic | TeamRcv   Gini$   Whale  RecovQ   Quit%  Term%    CP   Sig
+------------------------------------------------------------------------------------------------------------------------------------------------------
+Baseline (no behavioral effects) |   47.4%   0.519   43.7% |   0.564   43.1%   271.8 |   49.3%   0.648    0.0%   50.7%  100.0%   100%  3.84  0.00
+FOMO = 0.3                     |   47.4%   0.519   43.9% |   0.442   31.9%   340.0 |   52.4%   0.647    0.0%   47.6%  100.0%   100%  3.98  0.00
+FOMO = 0.5                     |   47.4%   0.520   44.1% |   0.435   30.6%   340.0 |   54.6%   0.646    0.0%   45.4%  100.0%   100%  3.96  0.00
+FOMO = 0.7                     |   47.4%   0.521   44.3% |   0.432   30.1%   340.0 |   57.8%   0.644    0.0%   42.2%  100.0%   100%  4.00  0.00
+FOMO=0.5 + Herding=0.3         |   47.4%   0.519   43.8% |   0.435   30.6%   340.0 |   49.8%   0.585    0.0%   50.2%  100.0%   100%  3.98  0.00
+FOMO=0.5 + Herding=0.6         |   48.0%   0.518   43.5% |   0.436   30.6%   340.0 |   49.2%   0.568    0.0%   50.8%  100.0%   100%  3.84  0.00
+High FOMO=0.7 + Herding=0.5    |   47.9%   0.520   43.8% |   0.432   30.1%   340.0 |   51.1%   0.569    0.0%   48.9%  100.0%   100%  3.98  0.00
+  Gini$ = Gini of dollar outcome (rage-quit payout + held shares at end NAV); comparable with DAICO Gini,
+  whose tokens are 1:1 dollars. Whale = whale share of remaining shares (0 when everyone has exited).
+
+==========================================================================================
+  Comparison: v3 defaults vs v4 calibrated profiles (baseline scenario)
+==========================================================================================
+  -- Core --
+  DAICO release efficiency     v3=       33.2%   small=       23.2%   large=       47.4%
+  RDA total raised             v3=      133.63   small=   91,506.33   large=  474,438.64
+  RDA participants             v3=        24.4   small=        16.2   large=       271.8
+  -- D1: Allocation Efficiency --
+  DAICO Gini                   v3=       0.487   small=       0.477   large=       0.519
+  RDA Gini                     v3=       0.516   small=       0.544   large=       0.564
+  -- D2: Manipulation Resistance --
+  RDA price volatility         v3=      0.0311   small=      0.0276   large=      0.0074
+  DAICO whale dominance        v3=       40.5%   small=       38.3%   large=       43.7%
+  RDA whale dominance          v3=       38.8%   small=       43.5%   large=       43.1%
+  RDA timing correlation       v3=      -0.011   small=      -0.115   large=       0.057
+  -- D3: Incentive Alignment --
+  DAICO capital retention      v3=       38.6%   small=       29.2%   large=       47.4%
+  DAICO ROI variance           v3=      0.0000   small=      0.0000   large=      0.0000
+  RDA ROI variance             v3=      0.0731   small=      0.0513   large=      0.0571
+
+  Key calibration effects vs v3 defaults:
+    - RDA end price is 24% of start price (Algorand-derived), not v3's 10% -- auctions clear higher and raise more per token.
+    - small_project has fewer, richer agents (20 agents, 1182.0x capital) -- niche-raise pattern.
+    - large_project has many more, smaller-capital agents (340 agents, 323.5x capital) -- mass-raise pattern, typically pulling Gini down and participant counts up relative to v3's flat n_agents=30.
+
+==========================================================================================
+  Comparison (v5): LAF vs DAICO on the same agents, baseline scenario
+==========================================================================================
+  -- Core --
+  LAF release efficiency       v3=       40.8%   small=       37.4%   large=        0.0%
+  LAF team received            v3=       43.4%   small=       38.0%   large=       49.3%
+  LAF exited via rage quit     v3=       26.63   small=   11,999.77   large=  145,124.18
+  LAF terminal (Rule 4) rate   v3=          8%   small=          2%   large=        100%
+  -- D1: Allocation Efficiency --
+  LAF Gini (final shares)      v3=       0.669   small=       0.607   large=       0.000
+  LAF Gini ($ outcome)         v3=       0.496   small=       0.476   large=       0.648
+  LAF top 10% share            v3=       51.7%   small=       46.3%   large=        0.0%
+  -- D2: Manipulation Resistance --
+  LAF whale dominance          v3=       39.9%   small=       40.3%   large=        0.0%
+  LAF whale vote weight        v3=       74.3%   small=       79.8%   large=       59.7%
+  LAF timing correlation       v3=      -0.991   small=      -0.996   large=      -0.991
+  -- D3: Incentive Alignment --
+  LAF capital retention        v3=       43.4%   small=       38.0%   large=       49.3%
+  LAF ROI variance             v3=      0.1220   small=      0.0383   large=      0.2232
+  -- LAF-specific --
+  Investor recovery (quitters) v3=       74.5%   small=       74.7%   large=       50.7%
+  Investor recovery (all cap.) v3=       34.0%   small=       18.8%   large=       50.7%
+  Rage-quit rate (agents)      v3=       45.5%   small=       26.7%   large=      100.0%
+  Checkpoints per run          v3=        2.96   small=        1.00   large=        3.84
+  Signal-triggered per run     v3=        0.06   small=        0.08   large=        0.00
+  Rule-2 pauses per run        v3=        0.66   small=        0.14   large=        0.78
+
+  Reading guide: DAICO and LAF share the same raise and the same initial share distribution, so
+  DAICO Gini equals LAF's Gini at day 0; LAF's final Gini reflects who exited. 'Team received' for
+  LAF is the linear-stream analogue of DAICO capital retention. Investor recovery (quitters) is the
+  average fraction of a quitter's deposit returned by rage quit; DAICO/RDA have no exit path, so no
+  counterpart exists there.

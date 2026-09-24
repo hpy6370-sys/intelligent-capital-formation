@@ -1,0 +1,20 @@
+# Foundry build artefacts and dependencies (restore with `forge install`, see README)
+02-solidity/lib/
+02-solidity/out/
+02-solidity/cache/
+02-solidity/broadcast/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Secrets (none expected in this repo)
+.env
+.env.*

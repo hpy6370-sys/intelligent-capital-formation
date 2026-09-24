@@ -1,0 +1,40 @@
+DAICO Patch 验证 — FOMO/Herding 影响测试
+======================================================================
+每组 1000 次 Monte Carlo, 20 ticks/run
+
+
+--- n=5 agents ---
+  FOMO |  Destroy% | Avg Raises | Avg Final Tap | Avg Rounds
+------------------------------------------------------------
+   0.0 |      3.8% |       0.20 |       0.01072 |       19.6
+   0.5 |      1.7% |       0.72 |       0.01287 |       19.8
+   1.0 |      0.3% |       1.70 |       0.01956 |       20.0
+
+  Effect: Destroy 3.8% -> 0.3% (delta -3.5pp)
+  Effect: Raises 0.20 -> 1.70 (delta +1.50)
+  ✅ FOMO has meaningful impact
+
+--- n=50 agents ---
+  FOMO |  Destroy% | Avg Raises | Avg Final Tap | Avg Rounds
+------------------------------------------------------------
+   0.0 |      1.5% |       0.04 |       0.01014 |       19.8
+   0.5 |      0.2% |       1.00 |       0.01380 |       20.0
+   1.0 |      0.0% |       4.40 |       0.03985 |       20.0
+
+  Effect: Destroy 1.5% -> 0.0% (delta -1.5pp)
+  Effect: Raises 0.04 -> 4.40 (delta +4.35)
+  ✅ FOMO has meaningful impact
+
+--- n=340 agents ---
+  FOMO |  Destroy% | Avg Raises | Avg Final Tap | Avg Rounds
+------------------------------------------------------------
+   0.0 |      0.0% |       0.00 |       0.01000 |       20.0
+   0.5 |      0.0% |       0.00 |       0.01000 |       20.0
+   1.0 |      0.0% |       0.61 |       0.01206 |       20.0
+
+  Effect: Destroy 0.0% -> 0.0% (delta +0.0pp)
+  Effect: Raises 0.00 -> 0.61 (delta +0.61)
+  ✅ FOMO has meaningful impact
+
+======================================================================
+Done.
