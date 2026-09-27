@@ -17,7 +17,9 @@ for this revision.
   lock the window to a harmless option.
 - The legacy `newRateDelta` argument must be zero. An increase or decrease
   changes the rate by a protocol-fixed half of the initial rate. The vault
-  itself caps the total rate at twice its initial value.
+  itself caps the total rate at twice its initial value. An increase that
+  reaches the cap is saturated there; another increase at the cap is a no-op,
+  so neither case prevents checkpoint resolution.
 - If the vault becomes terminal while a ballot is open, the checkpoint can
   still resolve but its action is recorded as `CONTINUE`. The vault rejects any
   later attempt to set a positive stream rate.

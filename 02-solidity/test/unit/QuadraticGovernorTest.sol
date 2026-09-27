@@ -388,6 +388,24 @@ contract QuadraticGovernorTest is LAFTestBase {
         assertTrue(vault.paused(), "HALT does not resume");
     }
 
+    function test_increaseAtRateCapStillResolves() public {
+        _fundAndClose();
+        uint256 maximum = RATE_PER_SECOND * 2;
+
+        // A partial increase at the ceiling must be capped, not reverted.
+        vm.prank(admin);
+        vault.setStreamRate(maximum - 1);
+        uint256 first = _unanimousCheckpoint(INCREASE_RATE);
+        assertEq(uint256(_resolvedAction(first)), uint256(INCREASE_RATE));
+        assertEq(vault.ratePerSecond(), maximum);
+
+        // A further increase is a no-op, but the checkpoint still closes.
+        uint256 second = _unanimousCheckpoint(INCREASE_RATE);
+        assertEq(uint256(_resolvedAction(second)), uint256(INCREASE_RATE));
+        assertEq(vault.ratePerSecond(), maximum);
+        assertTrue(governor.lastCheckpointEnd() > 0);
+    }
+
     // ================================================================
     //  7.3 #8  test_resolveCheckpoint_cannotExecuteTwice
     //  Also covers the window-still-open guard (timestamp <= windowEnd)

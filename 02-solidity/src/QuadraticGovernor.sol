@@ -278,7 +278,13 @@ contract QuadraticGovernor is IQuadraticGovernor, AccessControl {
             return;
         } else if (action == CheckpointAction.INCREASE_RATE) {
             uint256 currentRate = vault.ratePerSecond();
-            vault.setStreamRate(currentRate + rateDelta);
+            uint256 maximum = vault.initialRatePerSecond() * 2;
+            // A valid winning ballot must remain resolvable near the cap.
+            // Saturate the increase rather than reverting the whole checkpoint.
+            uint256 headroom = maximum - currentRate;
+            if (headroom > 0) {
+                vault.setStreamRate(currentRate + (rateDelta < headroom ? rateDelta : headroom));
+            }
         } else if (action == CheckpointAction.DECREASE_RATE) {
             uint256 currentRate = vault.ratePerSecond();
             uint256 newRate = rateDelta >= currentRate ? 0 : currentRate - rateDelta;
