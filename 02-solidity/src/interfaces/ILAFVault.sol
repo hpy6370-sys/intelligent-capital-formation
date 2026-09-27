@@ -21,7 +21,7 @@ interface ILAFVault {
     event StreamRateChanged(uint256 oldRate, uint256 newRate);
     event PausedForAudit(uint256 responsePeriodEnd);
     event Resumed(address indexed caller);
-    event RageQuitThresholdBreached(uint256 cumulativeInWindow, uint256 thresholdBps);
+    event RageQuitThresholdBreached(uint256 recentExitAmount, uint256 thresholdBps);
     event TerminalStateEntered(uint256 remainingBalance);
 
     // ---- View functions ----
@@ -29,6 +29,7 @@ interface ILAFVault {
     function totalClaimedByTeam() external view returns (uint256);
     function totalExitedViaRageQuit() external view returns (uint256);
     function ratePerSecond() external view returns (uint256);
+    function initialRatePerSecond() external view returns (uint256);
     function paused() external view returns (bool);
     function terminal() external view returns (bool);
 
@@ -36,6 +37,7 @@ interface ILAFVault {
     ///         exited via rage quit. This is the pool available for future
     ///         claims and rage-quit payouts.
     function unreleasedBalance() external view returns (uint256);
+    function recentRageQuit() external view returns (uint256);
 
     /// @notice How much the team has earned via streaming but not yet claimed.
     function claimable() external view returns (uint256);
@@ -64,7 +66,8 @@ interface ILAFVault {
     function withdrawForRageQuit(address holder, uint256 amount) external;
 
     // ---- Permissionless ----
-    /// @notice Check if pool has depleted below threshold. If so, enter terminal state.
+    /// @notice Check if the pool has depleted below a fraction of the amount
+    ///         that would remain unvested under the current stream.
     function checkPoolDepletion() external;
 
     /// @notice Resume streaming if audit response period has timed out. (Rule 1b)

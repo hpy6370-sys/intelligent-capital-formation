@@ -117,13 +117,8 @@ contract RageQuitTest is LAFTestBase {
     function test_rageQuit_crossing25PercentThreshold_autoPausesVault() public {
         _fundAndClose();
 
-        // Open a checkpoint window first so Rule 2 has a baseline
-        // Need to advance past the initial checkpoint interval
-        _warp(CHECKPOINT_INTERVAL + 1);
-        governor.openCheckpointWindow();
-
         // Pool is 100 ETH, 25% threshold = 25 ETH
-        // Alice rage quits 30 ETH worth, crossing the threshold
+        // Alice rage quits before any checkpoint, crossing the threshold.
         assertFalse(vault.paused(), "Should not be paused yet");
 
         vm.prank(alice);
@@ -136,14 +131,38 @@ contract RageQuitTest is LAFTestBase {
     function test_rageQuit_belowThreshold_doesNotPause() public {
         _fundAndClose();
 
-        _warp(CHECKPOINT_INTERVAL + 1);
-        governor.openCheckpointWindow();
-
         // Carol rage quits 20 ETH, below 25% threshold
         vm.prank(carol);
         rageQuit.rageQuit(20 ether);
 
         assertFalse(vault.paused(), "Should not pause for 20% of pool");
+    }
+
+    function test_rageQuitLookbackExpiresOldExits() public {
+        _fundAndClose();
+        vm.prank(alice);
+        rageQuit.rageQuit(20 ether);
+        assertEq(vault.recentRageQuit(), 20 ether);
+        assertFalse(vault.paused());
+
+        _warp(31 days);
+        assertEq(vault.recentRageQuit(), 0, "old exits leave the lookback");
+        vm.prank(bob);
+        rageQuit.rageQuit(20 ether);
+        assertEq(vault.recentRageQuit(), 20 ether);
+        assertFalse(vault.paused(), "expired exits do not accumulate forever");
+    }
+
+    function test_rageQuitAlarmRemainsActiveAfterCheckpointResolution() public {
+        _fundAndClose();
+        _warp(CHECKPOINT_INTERVAL + 1);
+        uint256 id = governor.openCheckpointWindow();
+        _warp(CHECKPOINT_WINDOW + 1);
+        governor.resolveCheckpoint(id);
+
+        vm.prank(alice);
+        rageQuit.rageQuit(30 ether);
+        assertTrue(vault.paused(), "a resolved checkpoint cannot disable Rule 2");
     }
 
     // ================================================================

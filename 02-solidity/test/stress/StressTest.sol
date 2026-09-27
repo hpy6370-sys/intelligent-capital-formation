@@ -77,6 +77,7 @@ contract StressTest is LAFTestBase {
         _warp(CHECKPOINT_INTERVAL + 1);
 
         uint256 cpId = governor.openCheckpointWindow();
+        (,,, uint256 snapshotBlock,,,,,,) = governor.checkpoints(cpId);
 
         // Sybil initiates vote
         vm.prank(sybils[0]);
@@ -85,7 +86,7 @@ contract StressTest is LAFTestBase {
         // All 100 sybils vote HALT
         uint256 sybilTotalWeight = 0;
         for (uint256 i = 0; i < 100; i++) {
-            uint256 weight = governor.votingPowerOf(sybils[i], block.number - 2);
+            uint256 weight = governor.votingPowerOf(sybils[i], snapshotBlock);
             if (weight > 0) {
                 vm.prank(sybils[i]);
                 governor.vote(cpId, IQuadraticGovernor.CheckpointAction.HALT);
@@ -94,24 +95,23 @@ contract StressTest is LAFTestBase {
         }
 
         // Whale votes CONTINUE
-        uint256 whaleWeight = governor.votingPowerOf(whale, block.number - 2);
+        uint256 whaleWeight = governor.votingPowerOf(whale, snapshotBlock);
         vm.prank(whale);
         governor.vote(cpId, IQuadraticGovernor.CheckpointAction.CONTINUE);
 
-        // sqrt(0.1 ETH) * 100 sybils vs sqrt(90 ETH) * 1 whale
-        // sqrt(0.1e18) ~= 316227766 per sybil, * 100 = 31622776601
-        // sqrt(90e18) ~= 9486832980 for whale
-        // Sybils collectively: ~31.6e9, Whale: ~9.5e9
-        // Sybils have MORE sqrt-weighted power than whale despite holding less capital!
-        // This is the known Limitation 4 — document, don't claim solved
+        // Splitting 10 ETH across 100 wallets must still produce 10 ETH of
+        // vote weight. The 90 ETH holder has 90 ETH of vote weight.
+        assertEq(sybilTotalWeight, 10 ether);
+        assertEq(whaleWeight, 90 ether);
 
         _warp(CHECKPOINT_WINDOW + 1);
         governor.resolveCheckpoint(cpId);
 
-        // The important assertion: the system doesn't crash or revert
-        // Whether HALT wins or not depends on quorum/majority rules
         (,,,,,bool resolved,,,,) = governor.checkpoints(cpId);
         assertTrue(resolved, "Checkpoint should resolve even under sybil attack");
+        (,,,,,, IQuadraticGovernor.CheckpointAction outcome,,,) = governor.checkpoints(cpId);
+        assertEq(uint256(outcome), uint256(IQuadraticGovernor.CheckpointAction.CONTINUE));
+        assertEq(vault.ratePerSecond(), RATE_PER_SECOND);
     }
 
     // ================================================================

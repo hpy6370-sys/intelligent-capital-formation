@@ -1,5 +1,10 @@
 # LAF Solidity Prototype: Working Flow
 
+> Historical walkthrough of the 2026-09-08 prototype. For the current
+> 2026-09-27 governance, Rule 2 and Rule 4 semantics, read
+> `PROTOTYPE-V2-CHANGES.md` and the contracts. The steps below retain the
+> earlier sqrt-weighted vote and checkpoint-snapshot alarm for reference.
+
 Sources: `02-solidity/`, package of 2026-09-08.
 
 **LAFVault** (Layer 1) holds all deposited ETH and streams it to the team at `ratePerSecond`; **RageQuitModule** (Layer 2) lets any holder burn `LAFShareToken` for a pro-rata share of the unreleased balance; **QuadraticGovernor** (Layer 3) runs 14-day sqrt-weighted checkpoint votes and applies the result to the vault; **SignalMonitor** (Layer 4) aggregates five health metrics from registered reporters and can only ask the governor for an early checkpoint. Calls flow one way: RageQuitModule to LAFVault (`RAGEQUIT_ROLE`), QuadraticGovernor to LAFVault (`GOVERNOR_ROLE`), SignalMonitor to QuadraticGovernor (`SIGNAL_ROLE`); the vault mints and the module burns `LAFShareToken` (`MINTER_ROLE`, `BURNER_ROLE`). ETH sits only in LAFVault; SignalMonitor has no role on it and no reference to it.

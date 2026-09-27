@@ -6,16 +6,15 @@ import {LAFVault} from "../../src/LAFVault.sol";
 import {QuadraticGovernor} from "../../src/QuadraticGovernor.sol";
 import {IQuadraticGovernor} from "../../src/interfaces/IQuadraticGovernor.sol";
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
-import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 /**
  * @title QuadraticGovernorTest
  * @notice Unit tests for Layer 3 (QuadraticGovernor), section 7.3 of laf_solidity_design.md.
  *
- * Default parameters from LAFTestBase: 90-day interval, 14-day window, quorum 20%,
+ * Default parameters from LAFTestBase: 90-day interval, 14-day window, quorum >50%,
  * majority 50%, 30-day default pause response period, 30-day signal rate limit.
  * Default holders from _fundAndClose(): alice 50 ETH, bob 30 ETH, carol 20 ETH
- * (sqrt weights ~7.07e9, ~5.48e9, ~4.47e9; sqrt(totalSupply) = 1e10; quorum = 2e9).
+ * (linear weights 50/30/20 ETH; quorum is 50.01 ETH of 100 ETH).
  *
  * The snapshot block is `block.number - 1`, so every test rolls at least one
  * block between minting shares and opening a window.
@@ -52,12 +51,12 @@ contract QuadraticGovernorTest is LAFTestBase {
     }
 
     /// @dev Full checkpoint where all three default holders vote for `action`.
-    function _unanimousCheckpoint(IQuadraticGovernor.CheckpointAction action, uint256 delta)
+    function _unanimousCheckpoint(IQuadraticGovernor.CheckpointAction action)
         internal
         returns (uint256 id)
     {
         id = _openScheduled();
-        _initiate(alice, id, action, delta);
+        _initiate(alice, id, action, 0);
         _vote(alice, id, action);
         _vote(bob, id, action);
         _vote(carol, id, action);
@@ -69,15 +68,14 @@ contract QuadraticGovernorTest is LAFTestBase {
     }
 
     function _quorumThreshold() internal view returns (uint256) {
-        return (Math.sqrt(shareToken.totalSupply()) * QUORUM_BPS) / 10000;
+        return (shareToken.totalSupply() * QUORUM_BPS) / 10000;
     }
 
     // ================================================================
-    //  7.3 #1  test_votingWeight_isSqrtOfBalance
-    //  100x larger holder gets exactly 10x weight
+    //  Linear snapshot weight cannot be increased by splitting wallets.
     // ================================================================
 
-    function test_votingWeight_isSqrtOfBalance() public {
+    function test_votingWeight_isLinearBalance() public {
         vm.prank(alice);
         vault.deposit{value: 100 ether}();
         vm.prank(bob);
@@ -85,7 +83,7 @@ contract QuadraticGovernorTest is LAFTestBase {
         vm.prank(admin);
         vault.closeFunding(RATE_PER_SECOND);
 
-        _warp(1);
+        _warp(CHECKPOINT_INTERVAL + 1);
         uint256 id = governor.openCheckpointWindow();
         (,,, uint256 snapshotBlock,,,,,,) = governor.checkpoints(id);
         assertEq(snapshotBlock, block.number - 1, "snapshot is the previous block");
@@ -94,9 +92,9 @@ contract QuadraticGovernorTest is LAFTestBase {
         uint256 wBob = governor.votingPowerOf(bob, snapshotBlock);
 
         assertEq(shareToken.balanceOf(alice), 100 * shareToken.balanceOf(bob), "balances differ 100x");
-        assertEq(wAlice, Math.sqrt(100 ether), "weight is integer sqrt of balance");
-        assertEq(wBob, Math.sqrt(1 ether));
-        assertEq(wAlice, 10 * wBob, "sqrt compresses 100x balance into 10x weight");
+        assertEq(wAlice, 100 ether, "weight equals snapshot shares");
+        assertEq(wBob, 1 ether);
+        assertEq(wAlice, 100 * wBob);
 
         // Weight recorded on vote matches votingPowerOf
         _initiate(alice, id, HALT, 0);
@@ -104,6 +102,21 @@ contract QuadraticGovernorTest is LAFTestBase {
         emit IQuadraticGovernor.Voted(id, alice, HALT, wAlice);
         _vote(alice, id, HALT);
         assertEq(governor.tallies(id, HALT), wAlice);
+    }
+
+    function test_transferredSharesHaveSnapshotVotes() public {
+        _fundAndClose();
+        address transferee = makeAddr("transferee");
+        vm.prank(alice);
+        shareToken.transfer(transferee, 10 ether);
+        assertEq(shareToken.delegates(transferee), transferee);
+
+        uint256 id = _openScheduled();
+        (,,, uint256 snapshotBlock,,,,,,) = governor.checkpoints(id);
+        assertEq(governor.votingPowerOf(transferee, snapshotBlock), 10 ether);
+        _initiate(transferee, id, HALT, 0);
+        _vote(transferee, id, HALT);
+        assertEq(governor.tallies(id, HALT), 10 ether);
     }
 
     // ================================================================
@@ -136,15 +149,17 @@ contract QuadraticGovernorTest is LAFTestBase {
     }
 
     // ================================================================
-    //  Extra A  first window has no interval gate (lastCheckpointEnd == 0)
-    //           and every window is exactly checkpointWindowDuration long
+    //  First scheduled window begins after the first full interval.
     // ================================================================
 
-    function test_firstWindow_opensWithoutIntervalGate_andIs14DaysLong() public {
+    function test_firstWindow_requiresInterval_andIs14DaysLong() public {
         _fundAndClose();
         assertEq(governor.lastCheckpointEnd(), 0);
 
-        _warp(1); // only for the snapshot block, not for the interval
+        _warp(1);
+        vm.expectRevert(QuadraticGovernor.IntervalNotElapsed.selector);
+        governor.openCheckpointWindow();
+        _warp(CHECKPOINT_INTERVAL - 1);
         vm.expectEmit(true, false, false, true, address(governor));
         emit IQuadraticGovernor.CheckpointWindowOpened(0, IQuadraticGovernor.CheckpointTrigger.SCHEDULED);
         uint256 id = governor.openCheckpointWindow();
@@ -206,7 +221,7 @@ contract QuadraticGovernorTest is LAFTestBase {
 
         vm.expectEmit(true, false, false, true, address(governor));
         emit IQuadraticGovernor.AuditVoteInitiated(id, DECREASE_RATE, alice);
-        _initiate(alice, id, DECREASE_RATE, 123);
+        _initiate(alice, id, DECREASE_RATE, 0);
 
         // Second initiation in the same window, by anyone, is rejected
         vm.prank(bob);
@@ -221,7 +236,7 @@ contract QuadraticGovernorTest is LAFTestBase {
             governor.checkpoints(id);
         assertTrue(auditInitiated);
         assertEq(uint256(proposed), uint256(DECREASE_RATE));
-        assertEq(delta, 123);
+        assertEq(delta, 0);
     }
 
     // ================================================================
@@ -263,7 +278,7 @@ contract QuadraticGovernorTest is LAFTestBase {
     // ================================================================
     //  7.3 #6  test_resolveCheckpoint_defaultsToContinue_ifQuorumNotMet
     //  Limitation 5. Needs a holder whose sqrt weight is below 20% of
-    //  sqrt(totalSupply): 1 ETH out of 101 ETH gives 1e9 < ~2.01e9.
+    //  1 ETH out of 101 ETH is below the >50% supply quorum.
     // ================================================================
 
     function test_resolveCheckpoint_defaultsToContinue_ifQuorumNotMet() public {
@@ -279,7 +294,7 @@ contract QuadraticGovernorTest is LAFTestBase {
         _vote(dave, id, HALT);
 
         (,,,,,,,,, uint256 totalVoteWeight) = governor.checkpoints(id);
-        assertEq(totalVoteWeight, Math.sqrt(1 ether));
+        assertEq(totalVoteWeight, 1 ether);
         assertLt(totalVoteWeight, _quorumThreshold(), "dave alone is below quorum");
 
         _closeAndResolve(id);
@@ -291,7 +306,7 @@ contract QuadraticGovernorTest is LAFTestBase {
     }
 
     // ================================================================
-    //  Extra B  quorum met but no action exceeds 50% of cast weight
+    //  A 50/50 tie between the proposal and CONTINUE does not pass.
     //  falls back to CONTINUE (strict > in _findWinner)
     // ================================================================
 
@@ -299,17 +314,17 @@ contract QuadraticGovernorTest is LAFTestBase {
         _fundAndClose();
         uint256 rateBefore = vault.ratePerSecond();
 
-        // Three-way split: alice HALT (~7.07e9), bob PAUSE (~5.48e9), carol DECREASE (~4.47e9)
+        // Alice votes HALT with 50 shares; Bob and Carol vote CONTINUE with 50.
         uint256 id = _openScheduled();
         _initiate(alice, id, HALT, 0);
         _vote(alice, id, HALT);
-        _vote(bob, id, PAUSE_FOR_AUDIT);
-        _vote(carol, id, DECREASE_RATE);
+        _vote(bob, id, CONTINUE);
+        _vote(carol, id, CONTINUE);
 
         (,,,,,,,,, uint256 total) = governor.checkpoints(id);
         assertGe(total, _quorumThreshold(), "quorum is met");
         uint256 best = governor.tallies(id, HALT);
-        assertGt(best, governor.tallies(id, PAUSE_FOR_AUDIT));
+        assertEq(best, governor.tallies(id, CONTINUE));
         assertLe(best, (total * MAJORITY_BPS) / 10000, "plurality but not majority");
 
         _closeAndResolve(id);
@@ -317,7 +332,7 @@ contract QuadraticGovernorTest is LAFTestBase {
         assertEq(vault.ratePerSecond(), rateBefore);
         assertFalse(vault.paused());
 
-        // Same electorate, alice + bob on HALT (~12.55e9 of ~17.02e9) clears 50%
+        // Alice and Bob together carry 80% of the snapshot supply.
         uint256 id2 = _openScheduled();
         _initiate(alice, id2, HALT, 0);
         _vote(alice, id2, HALT);
@@ -340,34 +355,25 @@ contract QuadraticGovernorTest is LAFTestBase {
         assertEq(rate0, RATE_PER_SECOND);
 
         // CONTINUE: no-op
-        uint256 idContinue = _unanimousCheckpoint(CONTINUE, 0);
+        uint256 idContinue = _unanimousCheckpoint(CONTINUE);
         assertEq(uint256(_resolvedAction(idContinue)), uint256(CONTINUE));
         assertEq(vault.ratePerSecond(), rate0, "CONTINUE leaves rate");
         assertFalse(vault.paused(), "CONTINUE leaves pause state");
 
-        // INCREASE_RATE: rate += delta
-        uint256 up = 0.0004 ether;
-        uint256 idInc = _unanimousCheckpoint(INCREASE_RATE, up);
+        // INCREASE_RATE: rate += the protocol-defined half-initial step.
+        uint256 up = RATE_PER_SECOND / 2;
+        uint256 idInc = _unanimousCheckpoint(INCREASE_RATE);
         assertEq(uint256(_resolvedAction(idInc)), uint256(INCREASE_RATE));
         assertEq(vault.ratePerSecond(), rate0 + up, "INCREASE_RATE adds delta");
 
         // DECREASE_RATE: rate -= delta
-        uint256 down = 0.0009 ether;
-        uint256 idDec = _unanimousCheckpoint(DECREASE_RATE, down);
+        uint256 down = RATE_PER_SECOND / 2;
+        uint256 idDec = _unanimousCheckpoint(DECREASE_RATE);
         assertEq(uint256(_resolvedAction(idDec)), uint256(DECREASE_RATE));
         assertEq(vault.ratePerSecond(), rate0 + up - down, "DECREASE_RATE subtracts delta");
 
-        // DECREASE_RATE with delta >= rate floors at 0 instead of underflowing
-        uint256 idFloor = _unanimousCheckpoint(DECREASE_RATE, type(uint256).max);
-        assertEq(uint256(_resolvedAction(idFloor)), uint256(DECREASE_RATE));
-        assertEq(vault.ratePerSecond(), 0, "DECREASE_RATE floors at zero");
-
-        // Put a rate back so HALT below is observable
-        vm.prank(admin);
-        vault.setStreamRate(rate0);
-
         // PAUSE_FOR_AUDIT: vault paused with the governor's default response period
-        uint256 idPause = _unanimousCheckpoint(PAUSE_FOR_AUDIT, 0);
+        uint256 idPause = _unanimousCheckpoint(PAUSE_FOR_AUDIT);
         assertEq(uint256(_resolvedAction(idPause)), uint256(PAUSE_FOR_AUDIT));
         assertTrue(vault.paused(), "PAUSE_FOR_AUDIT pauses the vault");
         assertEq(uint256(vault.pausedReason()), uint256(LAFVault.PauseReason.AUDIT_RESOLUTION));
@@ -376,7 +382,7 @@ contract QuadraticGovernorTest is LAFTestBase {
         assertEq(vault.ratePerSecond(), rate0, "PAUSE_FOR_AUDIT does not touch the rate");
 
         // HALT: rate set to 0 (pause state is left as is)
-        uint256 idHalt = _unanimousCheckpoint(HALT, 0);
+        uint256 idHalt = _unanimousCheckpoint(HALT);
         assertEq(uint256(_resolvedAction(idHalt)), uint256(HALT));
         assertEq(vault.ratePerSecond(), 0, "HALT zeroes the rate");
         assertTrue(vault.paused(), "HALT does not resume");
@@ -456,7 +462,7 @@ contract QuadraticGovernorTest is LAFTestBase {
 
         // Only alice and bob counted in the first checkpoint
         (,,,,,,,,, uint256 total) = governor.checkpoints(id);
-        assertEq(total, Math.sqrt(50 ether) + Math.sqrt(30 ether));
+        assertEq(total, 80 ether);
     }
 
     // ================================================================
@@ -561,8 +567,12 @@ contract QuadraticGovernorTest is LAFTestBase {
         assertFalse(monitor.evaluate(), "monitor sees no-op");
         assertEq(governor.nextCheckpointId(), 1);
 
-        // Once the window has expired (even before resolution) the guard no longer applies
+        // An expired window must be resolved before any successor can open.
         _warp(CHECKPOINT_WINDOW + 1);
+        vm.prank(address(monitor));
+        vm.expectRevert(QuadraticGovernor.CheckpointWindowAlreadyOpen.selector);
+        governor.triggerEarlyCheckpoint();
+        governor.resolveCheckpoint(id);
         vm.prank(address(monitor));
         uint256 early = governor.triggerEarlyCheckpoint();
         assertEq(early, id + 1);
@@ -570,25 +580,10 @@ contract QuadraticGovernorTest is LAFTestBase {
     }
 
     // ================================================================
-    //  7.3 #12  renamed from test_whaleCannotSingleHandedlyReachQuorum
-    //
-    //  The design document (section 7.3, last item) planned a test that a
-    //  single large holder cannot reach quorum on its own. Under the
-    //  prototype's actual rule that assertion is false, so it is not
-    //  written that way here and the contract is deliberately left alone.
-    //
-    //  Known design issue (v5 simulation report, "Four design findings for
-    //  the prototype", finding 2, see 01-simulation/LAF-SIMULATION-NOTE.md): quorum is 20% x sqrt(totalSupply) but it is
-    //  compared against sum(sqrt(balance_i)). A holder with 40% of shares
-    //  contributes sqrt(0.4) = 63% of sqrt(totalSupply), so one address
-    //  clears quorum alone; the simulation never saw quorum bind, only the
-    //  50% majority. The suggested fix is to define quorum on the same
-    //  aggregate as the vote weights or on a head count. Until that is
-    //  decided this test pins the current behaviour so a future fix shows
-    //  up as a deliberate test change, not a silent one.
+    //  A 40% holder cannot reach a >50% supply quorum alone.
     // ================================================================
 
-    function test_singleWhaleCanReachQuorumAlone() public {
+    function test_singleFortyPercentHolderCannotReachQuorum() public {
         // whale 40 ETH, six holders 10 ETH each, total 100 ETH
         address whale = makeAddr("whale");
         vm.deal(whale, 40 ether);
@@ -610,40 +605,32 @@ contract QuadraticGovernorTest is LAFTestBase {
         (,,, uint256 snapshotBlock,,,,,,) = governor.checkpoints(id);
 
         uint256 whaleWeight = governor.votingPowerOf(whale, snapshotBlock);
-        uint256 sqrtTotal = Math.sqrt(shareToken.totalSupply());
         uint256 quorum = _quorumThreshold();
-        assertEq(quorum, (sqrtTotal * 2000) / 10000);
-
-        // sqrt(0.4) of sqrt(totalSupply) is ~63%, more than three times the 20% bar
-        assertEq((whaleWeight * 100) / sqrtTotal, 63, "whale supplies 63% of sqrt(totalSupply)");
-        assertGe(whaleWeight, 3 * quorum, "whale weight alone exceeds 3x quorum");
-
-        // Against the aggregate the votes are actually summed over, the whale is only ~25%
-        uint256 sumSqrt = whaleWeight;
+        assertEq(whaleWeight, 40 ether);
+        assertEq(quorum, 50.01 ether);
+        uint256 summedWeight = whaleWeight;
         for (uint256 i = 0; i < 6; i++) {
-            sumSqrt += governor.votingPowerOf(small[i], snapshotBlock);
+            summedWeight += governor.votingPowerOf(small[i], snapshotBlock);
         }
-        assertEq((whaleWeight * 100) / sumSqrt, 25, "whale is 25% of sum(sqrt(balance_i))");
+        assertEq(summedWeight, 100 ether, "all snapshot weights sum to supply");
 
         // Whale alone initiates, votes HALT, nobody else shows up
         _initiate(whale, id, HALT, 0);
         _vote(whale, id, HALT);
         (,,,,,,,,, uint256 total) = governor.checkpoints(id);
         assertEq(total, whaleWeight);
-        assertGe(total, quorum, "quorum met by one address");
+        assertLt(total, quorum, "a 40% holder cannot reach quorum alone");
 
         _closeAndResolve(id);
-        assertEq(uint256(_resolvedAction(id)), uint256(HALT), "whale's action carried unilaterally");
-        assertEq(vault.ratePerSecond(), 0, "stream halted by a single holder");
+        assertEq(uint256(_resolvedAction(id)), uint256(CONTINUE));
+        assertEq(vault.ratePerSecond(), RATE_PER_SECOND);
     }
 
     // ================================================================
-    //  Extra D  the same mismatch at the boundary: 4% of supply gives
-    //  sqrt(0.04) = 20% of sqrt(totalSupply), exactly the quorum bar,
-    //  and >= lets it through.
+    //  A 4% holder has exactly 4% vote weight and cannot halt alone.
     // ================================================================
 
-    function test_fourPercentHolderMeetsQuorumExactly() public {
+    function test_fourPercentHolderCannotMeetQuorum() public {
         address minnow = makeAddr("minnow");
         vm.deal(minnow, 4 ether);
         vm.prank(minnow);
@@ -662,15 +649,15 @@ contract QuadraticGovernorTest is LAFTestBase {
         (,,, uint256 snapshotBlock,,,,,,) = governor.checkpoints(id);
 
         uint256 w = governor.votingPowerOf(minnow, snapshotBlock);
-        assertEq(w, 2e9, "sqrt(4e18) is exact");
-        assertEq(_quorumThreshold(), 2e9, "20% of sqrt(100e18)");
-        assertEq(w, _quorumThreshold(), "4% holder sits exactly on the quorum line");
+        assertEq(w, 4 ether);
+        assertEq(_quorumThreshold(), 50.01 ether);
+        assertLt(w, _quorumThreshold());
 
         _initiate(minnow, id, HALT, 0);
         _vote(minnow, id, HALT);
         _closeAndResolve(id);
-        assertEq(uint256(_resolvedAction(id)), uint256(HALT), "4% of supply halts the stream alone");
-        assertEq(vault.ratePerSecond(), 0);
+        assertEq(uint256(_resolvedAction(id)), uint256(CONTINUE));
+        assertEq(vault.ratePerSecond(), RATE_PER_SECOND);
     }
 
     /// @dev Regression for the unopened-id hole found on 2026-09-08: resolving a checkpoint that was
@@ -686,5 +673,73 @@ contract QuadraticGovernorTest is LAFTestBase {
         // The scheduled path is still reachable afterwards.
         uint256 id = _openScheduled();
         assertEq(id, 0);
+    }
+
+    function test_checkpointCannotOpenBeforeFundingCloses() public {
+        _warp(CHECKPOINT_INTERVAL + 1);
+        vm.expectRevert(QuadraticGovernor.FundingNotClosed.selector);
+        governor.openCheckpointWindow();
+        vm.prank(address(monitor));
+        vm.expectRevert(QuadraticGovernor.FundingNotClosed.selector);
+        governor.triggerEarlyCheckpoint();
+    }
+
+    function test_scheduledWindowCannotReplaceUnresolvedWindow() public {
+        _fundAndClose();
+        uint256 first = _openScheduled();
+
+        vm.expectRevert(QuadraticGovernor.CheckpointWindowAlreadyOpen.selector);
+        governor.openCheckpointWindow();
+        assertEq(governor.nextCheckpointId(), 1);
+
+        _warp(CHECKPOINT_WINDOW + 1);
+        vm.expectRevert(QuadraticGovernor.CheckpointWindowAlreadyOpen.selector);
+        governor.openCheckpointWindow();
+        governor.resolveCheckpoint(first);
+        vm.expectRevert(QuadraticGovernor.IntervalNotElapsed.selector);
+        governor.openCheckpointWindow();
+    }
+
+    function test_rateDeltaIsFixedAndInitiatorCannotRestrictBallot() public {
+        _fundAndClose();
+        uint256 id = _openScheduled();
+
+        vm.prank(alice);
+        vm.expectRevert(QuadraticGovernor.InvalidRateDelta.selector);
+        governor.initiateAuditVote(id, INCREASE_RATE, RATE_PER_SECOND);
+        vm.prank(alice);
+        vm.expectRevert(QuadraticGovernor.InvalidRateDelta.selector);
+        governor.initiateAuditVote(id, HALT, 1);
+
+        // A first caller can announce CONTINUE, but cannot block an increase vote.
+        _initiate(alice, id, CONTINUE, 0);
+        _vote(alice, id, INCREASE_RATE);
+        _vote(bob, id, INCREASE_RATE);
+        _vote(carol, id, CONTINUE);
+        _closeAndResolve(id);
+        assertEq(vault.ratePerSecond(), RATE_PER_SECOND + RATE_PER_SECOND / 2);
+    }
+
+    function test_checkpointResolutionCannotReviveTerminalVault() public {
+        _fundAndClose();
+        _warp(1);
+        vm.prank(address(monitor));
+        uint256 id = governor.triggerEarlyCheckpoint();
+        _initiate(alice, id, INCREASE_RATE, 0);
+        _vote(alice, id, INCREASE_RATE);
+        _vote(bob, id, INCREASE_RATE);
+
+        vm.prank(alice);
+        rageQuit.rageQuit(50 ether);
+        vm.prank(bob);
+        rageQuit.rageQuit(30 ether);
+        vm.prank(carol);
+        rageQuit.rageQuit(20 ether);
+        vault.checkPoolDepletion();
+        assertTrue(vault.terminal());
+
+        _closeAndResolve(id);
+        assertEq(uint256(_resolvedAction(id)), uint256(CONTINUE));
+        assertEq(vault.ratePerSecond(), 0);
     }
 }

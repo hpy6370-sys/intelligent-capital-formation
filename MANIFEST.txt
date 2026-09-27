@@ -1,4 +1,4 @@
-MANIFEST -- artefacts-for-shyam (regenerated 2026-09-09: dataset and counterfactuals trimmed to final English versions, file names without dates)
+HISTORICAL MANIFEST -- artefacts-for-shyam (snapshot regenerated 2026-09-09; this is not a current file inventory after the 2026-09-27 prototype revision)
 54 files, 4,513,413 bytes (excluding this manifest)
 
     18,964  01-simulation/LAF-SIMULATION-NOTE.md

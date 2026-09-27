@@ -1,5 +1,9 @@
 # P0 Scenario Deep Dive
 
+> This is a historical analytical scenario document. The Solidity prototype
+> changed governance and Rule 2/4 semantics on 2026-09-27; the recovery
+> estimates below have not been recomputed for those changes.
+
 > Based on the 3x3x3 scenario matrix, a detailed analysis of the 9 scenarios that Journal 2 must cover
 > Each scenario includes: setup, LAF behaviour timeline, key metrics, conclusion
 

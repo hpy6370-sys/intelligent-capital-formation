@@ -14,8 +14,8 @@ import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
  * Minted on deposit (by the vault), burned on rage quit (by the rage-quit module).
  * Inherits ERC20Votes for snapshot-based quadratic governance voting.
  *
- * Holders must self-delegate to activate vote tracking (OZ ERC20Votes default).
- * The vault auto-delegates on mint to simplify the investor UX.
+ * New holders are auto-delegated on mint or transfer so their shares count
+ * toward snapshot voting without a separate transaction.
  */
 contract LAFShareToken is ERC20, ERC20Permit, ERC20Votes, AccessControl {
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
@@ -29,13 +29,9 @@ contract LAFShareToken is ERC20, ERC20Permit, ERC20Votes, AccessControl {
     }
 
     /// @notice Mint shares to an investor. Only callable by the vault (MINTER_ROLE).
-    ///         Auto-delegates to the investor so their voting power is immediately active.
+    ///         The _update hook activates voting for a new recipient.
     function mint(address to, uint256 amount) external onlyRole(MINTER_ROLE) {
         _mint(to, amount);
-        // Auto-delegate if the investor hasn't delegated yet
-        if (delegates(to) == address(0)) {
-            _delegate(to, to);
-        }
     }
 
     /// @notice Burn shares from a holder. Only callable by the rage-quit module (BURNER_ROLE).
@@ -50,6 +46,9 @@ contract LAFShareToken is ERC20, ERC20Permit, ERC20Votes, AccessControl {
         override(ERC20, ERC20Votes)
     {
         super._update(from, to, value);
+        if (to != address(0) && delegates(to) == address(0)) {
+            _delegate(to, to);
+        }
     }
 
     function nonces(address owner)

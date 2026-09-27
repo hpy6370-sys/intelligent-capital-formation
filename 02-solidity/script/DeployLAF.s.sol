@@ -44,7 +44,7 @@ contract DeployLAF is Script {
             shareToken,
             90 days,            // checkpointInterval
             14 days,            // checkpointWindowDuration
-            2000,               // quorumBps: 20%
+            5001,               // quorumBps: >50% of snapshot shares
             5000,               // majorityBps: 50%
             30 days,            // defaultPauseResponsePeriod
             30 days             // signalRateLimit (Rule 3)

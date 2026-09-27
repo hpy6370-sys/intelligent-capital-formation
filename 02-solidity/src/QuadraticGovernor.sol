@@ -5,15 +5,18 @@ import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 import {IQuadraticGovernor} from "./interfaces/IQuadraticGovernor.sol";
 import {LAFShareToken} from "./LAFShareToken.sol";
 import {LAFVault} from "./LAFVault.sol";
-import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 /**
  * @title QuadraticGovernor
- * @notice Layer 3 — Periodic quadratic-weighted governance checkpoints.
+ * @notice Layer 3 — Periodic share-weighted governance checkpoints.
+ * @dev The contract name is retained for integration compatibility. The
+ *      previous sqrt weighting was vulnerable to wallet splitting.
  *
  * Opens checkpoint windows at regular intervals (default 90 days).
  * Within a window, any holder can initiate an audit vote; votes are
- * weighted by sqrt(balanceAtSnapshot). If no vote is initiated or
+ * weighted by the holder's shares at the snapshot. The first holder opens
+ * the ballot, but cannot restrict the actions other holders may choose.
+ * If no vote is initiated or
  * quorum is not met, the checkpoint resolves as CONTINUE.
  *
  * SignalMonitor (SIGNAL_ROLE) can trigger early checkpoints, rate-limited
@@ -28,7 +31,7 @@ contract QuadraticGovernor is IQuadraticGovernor, AccessControl {
     // Constructor params (configurable for stress-test sweeps)
     uint256 public immutable checkpointInterval;        // default 90 days
     uint256 public immutable checkpointWindowDuration;  // default 14 days
-    uint256 public immutable quorumBps;                 // default 2000 (20%)
+    uint256 public immutable quorumBps;                 // default 5001 (>50% of snapshot shares)
     uint256 public immutable majorityBps;               // default 5000 (50%)
     uint256 public immutable defaultPauseResponsePeriod;// default 30 days
     uint256 public immutable signalRateLimit;           // default 30 days
@@ -66,6 +69,8 @@ contract QuadraticGovernor is IQuadraticGovernor, AccessControl {
     error SignalRateLimited();
     error NotAShareHolder();
     error CheckpointWindowAlreadyOpen();
+    error FundingNotClosed();
+    error InvalidRateDelta();
 
     constructor(
         address admin,
@@ -96,6 +101,10 @@ contract QuadraticGovernor is IQuadraticGovernor, AccessControl {
 
     /// @inheritdoc IQuadraticGovernor
     function openCheckpointWindow() external override returns (uint256 id) {
+        if (!vault.fundingClosed()) revert FundingNotClosed();
+        if (block.timestamp < vault.streamStartTime() + checkpointInterval) {
+            revert IntervalNotElapsed();
+        }
         // Check interval has elapsed since last window closed
         if (lastCheckpointEnd != 0 && block.timestamp < lastCheckpointEnd + checkpointInterval) {
             revert IntervalNotElapsed();
@@ -106,17 +115,10 @@ contract QuadraticGovernor is IQuadraticGovernor, AccessControl {
 
     /// @inheritdoc IQuadraticGovernor
     function triggerEarlyCheckpoint() external override onlyRole(SIGNAL_ROLE) returns (uint256 id) {
+        if (!vault.fundingClosed()) revert FundingNotClosed();
         // Rule 3: rate-limited to once per signalRateLimit
         if (lastSignalTrigger != 0 && block.timestamp < lastSignalTrigger + signalRateLimit) {
             revert SignalRateLimited();
-        }
-
-        // Rule 3: no-op if a window is already open
-        if (nextCheckpointId > 0) {
-            Checkpoint storage latest = checkpoints[nextCheckpointId - 1];
-            if (!latest.resolved && block.timestamp <= latest.windowEnd) {
-                revert CheckpointWindowAlreadyOpen();
-            }
         }
 
         lastSignalTrigger = block.timestamp;
@@ -135,6 +137,9 @@ contract QuadraticGovernor is IQuadraticGovernor, AccessControl {
         _requireWindowOpen(cp, checkpointId);
         if (cp.auditInitiated) revert AuditAlreadyInitiated(checkpointId);
         if (shareToken.balanceOf(msg.sender) == 0) revert NotAShareHolder();
+        // Kept in the ABI for compatibility, but the step is protocol-fixed.
+        // The first caller must not set the amount used by every voter.
+        if (newRateDelta != 0) revert InvalidRateDelta();
 
         cp.auditInitiated = true;
         cp.proposedAction = action;
@@ -176,9 +181,10 @@ contract QuadraticGovernor is IQuadraticGovernor, AccessControl {
         CheckpointAction action = CheckpointAction.CONTINUE;
 
         if (cp.auditInitiated) {
-            // Check quorum: 20% of sqrt(totalSupply)
-            uint256 sqrtTotal = Math.sqrt(shareToken.totalSupply());
-            uint256 quorumThreshold = (sqrtTotal * quorumBps) / 10000;
+            // Vote weight and quorum use the same snapshot units: shares.
+            // Splitting a holding over wallets cannot increase total weight.
+            uint256 snapshotSupply = shareToken.getPastTotalSupply(cp.snapshotBlock);
+            uint256 quorumThreshold = (snapshotSupply * quorumBps) / 10000;
 
             if (cp.totalVoteWeight >= quorumThreshold) {
                 // Find the winning action (highest tally with > majorityBps)
@@ -187,8 +193,11 @@ contract QuadraticGovernor is IQuadraticGovernor, AccessControl {
             // If quorum not met, action stays CONTINUE (Limitation 5)
         }
 
+        // A window may outlive the vault. Terminal is one-way, so a late
+        // increase vote cannot reactivate its stream.
+        if (vault.terminal()) action = CheckpointAction.CONTINUE;
         cp.resolvedAction = action;
-        _applyAction(action, cp.proposedRateDelta);
+        _applyAction(action);
 
         emit CheckpointResolved(checkpointId, action);
     }
@@ -198,9 +207,7 @@ contract QuadraticGovernor is IQuadraticGovernor, AccessControl {
     // ================================================================
 
     function votingPowerOf(address account, uint256 snapshotBlock) public view returns (uint256) {
-        // Use getPastVotes from ERC20Votes for snapshot-based balance
-        uint256 balance = shareToken.getPastVotes(account, snapshotBlock);
-        return Math.sqrt(balance);
+        return shareToken.getPastVotes(account, snapshotBlock);
     }
 
     // ================================================================
@@ -208,6 +215,9 @@ contract QuadraticGovernor is IQuadraticGovernor, AccessControl {
     // ================================================================
 
     function _openWindow(CheckpointTrigger trigger) internal returns (uint256 id) {
+        if (nextCheckpointId > 0 && !checkpoints[nextCheckpointId - 1].resolved) {
+            revert CheckpointWindowAlreadyOpen();
+        }
         id = nextCheckpointId++;
 
         checkpoints[id] = Checkpoint({
@@ -223,7 +233,7 @@ contract QuadraticGovernor is IQuadraticGovernor, AccessControl {
             totalVoteWeight: 0
         });
 
-        // Notify the vault to snapshot its unreleased balance for Rule 2
+        // Preserve checkpoint metadata for observers. Rule 2 uses rolling exits.
         vault.markCheckpointWindowOpen(id);
 
         emit CheckpointWindowOpened(id, trigger);
@@ -261,7 +271,8 @@ contract QuadraticGovernor is IQuadraticGovernor, AccessControl {
         return best;
     }
 
-    function _applyAction(CheckpointAction action, uint256 rateDelta) internal {
+    function _applyAction(CheckpointAction action) internal {
+        uint256 rateDelta = (vault.initialRatePerSecond() + 1) / 2;
         if (action == CheckpointAction.CONTINUE) {
             // No-op
             return;

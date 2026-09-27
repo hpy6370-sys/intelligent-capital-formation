@@ -33,6 +33,7 @@ contract LAFVault is ILAFVault, AccessControl, ReentrancyGuard {
 
     // Stream configuration
     uint256 public override ratePerSecond;
+    uint256 public override initialRatePerSecond;
     uint256 public streamStartTime;
     uint256 public lastClaimTime;
     bool    public override paused;
@@ -53,10 +54,14 @@ contract LAFVault is ILAFVault, AccessControl, ReentrancyGuard {
     uint256 public override totalExitedViaRageQuit;
     bool    public fundingClosed;
 
-    // Rule 2 — checkpoint window state
+    // Checkpoint metadata retained for observability. Rule 2 now uses the
+    // bounded daily exit history below, not the checkpoint snapshot.
     uint256 public currentWindowId;
     uint256 public unreleasedBalanceAtOpen;
     uint256 public cumulativeRageQuitInWindow;
+    // A bounded 30-calendar-day history keeps the exit alarm live between checkpoints.
+    uint256 public constant RAGE_QUIT_LOOKBACK_DAYS = 30;
+    mapping(uint256 => uint256) public rageQuitByDay;
 
     // Constructor params (configurable for stress-test sweeps)
     uint256 public immutable rageQuitAutoPauseBps;  // default 2500 (25%)
@@ -77,6 +82,7 @@ contract LAFVault is ILAFVault, AccessControl, ReentrancyGuard {
     error PauseNotTimedOut();
     error AlreadyTerminal();
     error TransferFailed();
+    error RateTooHigh(uint256 requested, uint256 maximum);
 
     constructor(
         address admin,
@@ -120,9 +126,13 @@ contract LAFVault is ILAFVault, AccessControl, ReentrancyGuard {
     function closeFunding(uint256 _ratePerSecond) external override onlyRole(DEFAULT_ADMIN_ROLE) {
         if (fundingClosed) revert FundingAlreadyClosed();
         require(_ratePerSecond > 0, "Rate must be positive");
+        if (_ratePerSecond > type(uint256).max / 2) {
+            revert RateTooHigh(_ratePerSecond, type(uint256).max / 2);
+        }
 
         fundingClosed = true;
         ratePerSecond = _ratePerSecond;
+        initialRatePerSecond = _ratePerSecond;
         streamStartTime = block.timestamp;
         lastClaimTime = block.timestamp;
 
@@ -136,8 +146,8 @@ contract LAFVault is ILAFVault, AccessControl, ReentrancyGuard {
     /// @inheritdoc ILAFVault
     function claim() external override onlyRole(TEAM_ROLE) nonReentrant {
         if (!fundingClosed) revert FundingNotClosed();
-        if (paused) revert VaultPaused();
         if (terminal) revert VaultTerminal();
+        if (paused) revert VaultPaused();
 
         uint256 amount = claimable();
         if (amount == 0) revert NothingToClaim();
@@ -158,6 +168,9 @@ contract LAFVault is ILAFVault, AccessControl, ReentrancyGuard {
     /// @inheritdoc ILAFVault
     function setStreamRate(uint256 newRate) external override onlyRole(GOVERNOR_ROLE) {
         if (!fundingClosed) revert FundingNotClosed();
+        if (terminal) revert VaultTerminal();
+        uint256 maximum = initialRatePerSecond * 2;
+        if (newRate > maximum) revert RateTooHigh(newRate, maximum);
 
         // Settle any accrued but unclaimed streaming before changing rate
         _settleStream();
@@ -210,19 +223,22 @@ contract LAFVault is ILAFVault, AccessControl, ReentrancyGuard {
     function withdrawForRageQuit(address holder, uint256 amount) external override onlyRole(RAGEQUIT_ROLE) nonReentrant {
         if (!fundingClosed) revert FundingNotClosed();
 
+        uint256 balanceBeforeExit = unreleasedBalance();
         totalExitedViaRageQuit += amount;
 
-        // Rule 2: track cumulative rage quit in the current checkpoint window
+        // Keep the checkpoint counter for analytics; the alarm uses daily buckets.
         cumulativeRageQuitInWindow += amount;
+        rageQuitByDay[block.timestamp / 1 days] += amount;
 
         // Transfer funds to holder
         (bool ok,) = holder.call{value: amount}("");
         if (!ok) revert TransferFailed();
 
-        // Rule 2 check: if cumulative rage quit exceeds threshold, auto-pause
+        // Rule 2: use the last 30 days at all times, including before the
+        // first checkpoint and after a checkpoint has resolved.
+        uint256 recentExits = recentRageQuit();
         if (
-            unreleasedBalanceAtOpen > 0 &&
-            cumulativeRageQuitInWindow * 10000 > unreleasedBalanceAtOpen * rageQuitAutoPauseBps &&
+            recentExits * 10000 > balanceBeforeExit * rageQuitAutoPauseBps &&
             !paused &&
             !terminal
         ) {
@@ -235,7 +251,7 @@ contract LAFVault is ILAFVault, AccessControl, ReentrancyGuard {
             // Use the max pause duration as default for rage-quit triggered pause
             pauseResponsePeriod = maxPauseDuration;
 
-            emit RageQuitThresholdBreached(cumulativeRageQuitInWindow, rageQuitAutoPauseBps);
+            emit RageQuitThresholdBreached(recentExits, rageQuitAutoPauseBps);
         }
     }
 
@@ -248,8 +264,13 @@ contract LAFVault is ILAFVault, AccessControl, ReentrancyGuard {
         if (!fundingClosed) revert FundingNotClosed();
         if (terminal) revert AlreadyTerminal();
 
-        // Rule 4: if unreleased balance drops below threshold, enter terminal state
-        if (unreleasedBalance() * 10000 < totalDeposited * poolDepletionBps) {
+        // Compare with the amount that would still be unvested under the
+        // stream, rather than the original raise. Normal vesting alone must
+        // not trigger a one-way terminal state.
+        uint256 streamed = _totalStreamed();
+        uint256 unvested = streamed >= totalDeposited ? 0 : totalDeposited - streamed;
+        uint256 remaining = unreleasedBalance();
+        if (remaining == 0 || (unvested > 0 && remaining * 10000 < unvested * poolDepletionBps)) {
             _settleStream();
 
             terminal = true;
@@ -275,6 +296,14 @@ contract LAFVault is ILAFVault, AccessControl, ReentrancyGuard {
     /// @inheritdoc ILAFVault
     function unreleasedBalance() public view override returns (uint256) {
         return totalDeposited - totalClaimedByTeam - totalExitedViaRageQuit;
+    }
+
+    /// @notice ETH exited in the current day and preceding 29 days.
+    function recentRageQuit() public view override returns (uint256 amount) {
+        uint256 today = block.timestamp / 1 days;
+        for (uint256 i = 0; i < RAGE_QUIT_LOOKBACK_DAYS && i <= today; i++) {
+            amount += rageQuitByDay[today - i];
+        }
     }
 
     /// @inheritdoc ILAFVault

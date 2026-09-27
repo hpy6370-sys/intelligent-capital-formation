@@ -294,6 +294,41 @@ contract LAFVaultTest is LAFTestBase {
         assertFalse(vault.terminal(), "Should not be terminal with full balance");
     }
 
+    function test_normalVestingDoesNotTriggerTerminal() public {
+        _fundAndClose();
+        _warp(95_000); // 95 ETH is vested under the initial stream.
+        vm.prank(team);
+        vault.claim();
+        assertEq(vault.unreleasedBalance(), 5 ether);
+        vault.checkPoolDepletion();
+        assertFalse(vault.terminal(), "normal vesting is not pool depletion");
+    }
+
+    function test_governorCannotSetRateAboveTwiceInitialRate() public {
+        _fundAndClose();
+        vm.prank(admin);
+        vm.expectRevert(abi.encodeWithSelector(
+            LAFVault.RateTooHigh.selector, RATE_PER_SECOND * 2 + 1, RATE_PER_SECOND * 2
+        ));
+        vault.setStreamRate(RATE_PER_SECOND * 2 + 1);
+    }
+
+    function test_terminalCannotBeReactivatedByGovernor() public {
+        _fundAndClose();
+        vm.prank(alice);
+        rageQuit.rageQuit(50 ether);
+        vm.prank(bob);
+        rageQuit.rageQuit(30 ether);
+        vm.prank(carol);
+        rageQuit.rageQuit(20 ether);
+        vault.checkPoolDepletion();
+
+        vm.prank(admin);
+        vm.expectRevert(LAFVault.VaultTerminal.selector);
+        vault.setStreamRate(RATE_PER_SECOND);
+        assertEq(vault.ratePerSecond(), 0);
+    }
+
     // ================================================================
     //                      INVARIANT CHECKS
     // ================================================================

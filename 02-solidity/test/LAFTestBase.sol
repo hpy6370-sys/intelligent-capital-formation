@@ -33,7 +33,7 @@ abstract contract LAFTestBase is Test {
     uint256 constant MAX_PAUSE_DURATION = 60 days;
     uint256 constant CHECKPOINT_INTERVAL = 90 days;
     uint256 constant CHECKPOINT_WINDOW = 14 days;
-    uint256 constant QUORUM_BPS = 2000;                  // 20%
+    uint256 constant QUORUM_BPS = 5001;                  // more than half of outstanding shares
     uint256 constant MAJORITY_BPS = 5000;                // 50%
     uint256 constant DEFAULT_PAUSE_PERIOD = 30 days;
     uint256 constant SIGNAL_RATE_LIMIT = 30 days;

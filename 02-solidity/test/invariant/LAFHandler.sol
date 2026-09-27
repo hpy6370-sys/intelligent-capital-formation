@@ -212,7 +212,7 @@ contract LAFHandler is Test {
         );
 
         vm.startPrank(investor);
-        try governor.initiateAuditVote(cpId, action, 100) {} catch {}
+        try governor.initiateAuditVote(cpId, action, 0) {} catch {}
         try governor.vote(cpId, action) {} catch {}
         vm.stopPrank();
     }

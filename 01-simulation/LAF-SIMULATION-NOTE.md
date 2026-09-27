@@ -1,5 +1,10 @@
 # LAF in the Monte Carlo simulation (v5.0, 2026-09-08)
 
+> Historical model: the Solidity prototype was revised on 2026-09-27.
+> The results below model the earlier sqrt-weighted vote, 20 % quorum,
+> checkpoint-snapshot Rule 2 and initial-raise Rule 4. They must not be
+> attributed to the revised contracts without rerunning a matching model.
+
 ## 1. What was added
 
 v5 adds LAF as a third mechanism to the v4 Monte Carlo harness next to DAICO and RDA, on the same agents and the same 7 scenarios x 3 scales, N=50 runs per cell, fixed seeds. DAICO and RDA results are unchanged: the v4 scripts were not edited; v5 imports them, calls `v4.run_single()` as is, then replays the fundraising prefix under the same seed to recover the identical agents, with an assert that the replayed raise equals the v4 pool plus released amount (relative error 1e-9), passing in all 50 x 21 runs. Of the 622 v4 output lines only the 2 header lines differ in v5, the other 620 appear verbatim, and v5 appends 555 lines. Three consecutive v5 runs are byte-identical. LAF uses its own `random.Random(seed x 1000003 + 20260908)`, so the global random stream is consumed only by v4 code.
