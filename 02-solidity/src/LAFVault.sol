@@ -80,6 +80,7 @@ contract LAFVault is ILAFVault, AccessControl, ReentrancyGuard {
     error ResponsePeriodExceedsMax(uint256 requested, uint256 max);
     error NotPaused();
     error PauseNotTimedOut();
+    error AlreadyPaused();
     error AlreadyTerminal();
     error TransferFailed();
     error RateTooHigh(uint256 requested, uint256 maximum);
@@ -185,6 +186,9 @@ contract LAFVault is ILAFVault, AccessControl, ReentrancyGuard {
     function pauseForAudit(uint256 _responsePeriod) external override onlyRole(GOVERNOR_ROLE) {
         if (!fundingClosed) revert FundingNotClosed();
         if (terminal) revert VaultTerminal();
+        // A second pause must not reset the response clock and turn a
+        // bounded pause into an extendable freeze.
+        if (paused) revert AlreadyPaused();
         if (_responsePeriod > maxPauseDuration) {
             revert ResponsePeriodExceedsMax(_responsePeriod, maxPauseDuration);
         }

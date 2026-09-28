@@ -50,6 +50,11 @@ checkpoint, during voting and between checkpoints. Rage quit remains possible
 during a pause. The bucketed window is intentionally calendar-day granular;
 near a day boundary its age spans slightly less than 30 exact days.
 
+An active pause cannot be paused again to reset or extend its deadline. If a
+checkpoint passes `PAUSE_FOR_AUDIT` while the vault is already paused (for
+example by Rule 2), the checkpoint resolves successfully but preserves the
+existing pause reason and timeout.
+
 Checkpoint snapshot fields are still emitted/stored for observability, but
 they no longer determine the automatic pause. The historical scenario notes
 used a different rolling interpretation and must be recalculated.

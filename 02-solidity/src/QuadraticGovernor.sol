@@ -290,7 +290,12 @@ contract QuadraticGovernor is IQuadraticGovernor, AccessControl {
             uint256 newRate = rateDelta >= currentRate ? 0 : currentRate - rateDelta;
             vault.setStreamRate(newRate);
         } else if (action == CheckpointAction.PAUSE_FOR_AUDIT) {
-            vault.pauseForAudit(defaultPauseResponsePeriod);
+            // Preserve an existing Rule 2 or audit pause and its deadline.
+            // Otherwise a valid PAUSE ballot could revert on the vault and
+            // leave the checkpoint permanently unresolved.
+            if (!vault.paused()) {
+                vault.pauseForAudit(defaultPauseResponsePeriod);
+            }
         } else if (action == CheckpointAction.HALT) {
             vault.setStreamRate(0);
         }

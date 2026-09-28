@@ -406,6 +406,29 @@ contract QuadraticGovernorTest is LAFTestBase {
         assertTrue(governor.lastCheckpointEnd() > 0);
     }
 
+    function test_pauseVoteDuringExistingPauseResolvesWithoutExtendingDeadline() public {
+        _fundAndClose();
+
+        vm.prank(admin);
+        vault.pauseForAudit(MAX_PAUSE_DURATION);
+        uint256 pauseAt = vault.pausedAt();
+        uint256 pausePeriod = vault.pauseResponsePeriod();
+
+        _warp(1);
+        vm.prank(address(monitor));
+        uint256 id = governor.triggerEarlyCheckpoint();
+        _initiate(alice, id, PAUSE_FOR_AUDIT, 0);
+        _vote(alice, id, PAUSE_FOR_AUDIT);
+        _vote(bob, id, PAUSE_FOR_AUDIT);
+        _vote(carol, id, PAUSE_FOR_AUDIT);
+        _closeAndResolve(id);
+
+        assertEq(uint256(_resolvedAction(id)), uint256(PAUSE_FOR_AUDIT));
+        assertTrue(vault.paused());
+        assertEq(vault.pausedAt(), pauseAt, "vote cannot reset an active pause");
+        assertEq(vault.pauseResponsePeriod(), pausePeriod, "vote cannot extend deadline");
+    }
+
     // ================================================================
     //  7.3 #8  test_resolveCheckpoint_cannotExecuteTwice
     //  Also covers the window-still-open guard (timestamp <= windowEnd)

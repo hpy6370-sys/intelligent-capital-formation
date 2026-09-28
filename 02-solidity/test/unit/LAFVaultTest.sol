@@ -193,6 +193,23 @@ contract LAFVaultTest is LAFTestBase {
         vault.claim();
     }
 
+    function test_pauseForAudit_cannotResetAnActivePauseDeadline() public {
+        _fundAndClose();
+
+        vm.prank(admin);
+        vault.pauseForAudit(30 days);
+        uint256 firstPauseAt = vault.pausedAt();
+        uint256 firstPeriod = vault.pauseResponsePeriod();
+
+        _warp(1 days);
+        vm.prank(admin);
+        vm.expectRevert(LAFVault.AlreadyPaused.selector);
+        vault.pauseForAudit(60 days);
+
+        assertEq(vault.pausedAt(), firstPauseAt, "second pause cannot reset start");
+        assertEq(vault.pauseResponsePeriod(), firstPeriod, "second pause cannot extend deadline");
+    }
+
     function test_pauseForAudit_excludesPausedTimeFromStream() public {
         _fundAndClose();
 
