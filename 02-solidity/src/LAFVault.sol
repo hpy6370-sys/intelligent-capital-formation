@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity 0.8.28;
 
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
@@ -84,6 +84,7 @@ contract LAFVault is ILAFVault, AccessControl, ReentrancyGuard {
     error AlreadyTerminal();
     error TransferFailed();
     error RateTooHigh(uint256 requested, uint256 maximum);
+    error InvalidBasisPoints(uint256 value);
 
     constructor(
         address admin,
@@ -93,6 +94,9 @@ contract LAFVault is ILAFVault, AccessControl, ReentrancyGuard {
         uint256 _poolDepletionBps,
         uint256 _maxPauseDuration
     ) {
+        if (_rageQuitAutoPauseBps > 10_000) revert InvalidBasisPoints(_rageQuitAutoPauseBps);
+        if (_poolDepletionBps > 10_000) revert InvalidBasisPoints(_poolDepletionBps);
+
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(TEAM_ROLE, team);
 
