@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity 0.8.28;
 
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 import {IQuadraticGovernor} from "./interfaces/IQuadraticGovernor.sol";
@@ -71,6 +71,7 @@ contract QuadraticGovernor is IQuadraticGovernor, AccessControl {
     error CheckpointWindowAlreadyOpen();
     error FundingNotClosed();
     error InvalidRateDelta();
+    error InvalidBasisPoints(uint256 value);
 
     constructor(
         address admin,
@@ -83,6 +84,9 @@ contract QuadraticGovernor is IQuadraticGovernor, AccessControl {
         uint256 _defaultPauseResponsePeriod,
         uint256 _signalRateLimit
     ) {
+        if (_quorumBps == 0 || _quorumBps > 10_000) revert InvalidBasisPoints(_quorumBps);
+        if (_majorityBps < 5_000 || _majorityBps >= 10_000) revert InvalidBasisPoints(_majorityBps);
+
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
 
         vault = _vault;
@@ -184,7 +188,8 @@ contract QuadraticGovernor is IQuadraticGovernor, AccessControl {
             // Vote weight and quorum use the same snapshot units: shares.
             // Splitting a holding over wallets cannot increase total weight.
             uint256 snapshotSupply = shareToken.getPastTotalSupply(cp.snapshotBlock);
-            uint256 quorumThreshold = (snapshotSupply * quorumBps) / 10000;
+            // Round up: integer truncation must not lower the configured quorum.
+            uint256 quorumThreshold = _ceilBasisPoints(snapshotSupply, quorumBps);
 
             if (cp.totalVoteWeight >= quorumThreshold) {
                 // Find the winning action (highest tally with > majorityBps)
@@ -208,6 +213,13 @@ contract QuadraticGovernor is IQuadraticGovernor, AccessControl {
 
     function votingPowerOf(address account, uint256 snapshotBlock) public view returns (uint256) {
         return shareToken.getPastVotes(account, snapshotBlock);
+    }
+
+    /// @dev Compute ceil(value * bps / 10_000) without multiplying the full value first.
+    function _ceilBasisPoints(uint256 value, uint256 bps) internal pure returns (uint256) {
+        uint256 whole = (value / 10_000) * bps;
+        uint256 remainder = ((value % 10_000) * bps + 9_999) / 10_000;
+        return whole + remainder;
     }
 
     // ================================================================

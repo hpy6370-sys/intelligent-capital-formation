@@ -57,7 +57,13 @@ python sim_v5_sensitivity.py > output/simulation_v5_sensitivity.txt   # ~7 s
 PYTHONIOENCODING=utf-8 python verify_daico_patch.py             # ~4 min; UTF-8 needed for its console output on Windows
 ```
 
-Solidity (Foundry; verified with forge 1.7.1, solc 0.8.28 pinned in `foundry.toml`):
+Solidity toolchain: source, test, and deploy files declare exact
+`pragma solidity 0.8.28`, matching the solc 0.8.28 pin in `foundry.toml`.
+`foundry.lock` records the exact forge-std and OpenZeppelin revisions. The
+archived 2026-09-08 test log comes from Foundry 1.7.1 and the earlier
+prototype; the 2026-09-27 revision note reports Foundry 1.8.3 for the updated
+suite. The Foundry binary version is not pinned by this project, and the newer
+run's raw log is not checked in.
 
 ```
 cd 02-solidity

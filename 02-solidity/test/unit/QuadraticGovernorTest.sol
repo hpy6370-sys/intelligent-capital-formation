@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity 0.8.28;
 
 import {LAFTestBase} from "../LAFTestBase.sol";
 import {LAFVault} from "../../src/LAFVault.sol";
@@ -68,7 +68,9 @@ contract QuadraticGovernorTest is LAFTestBase {
     }
 
     function _quorumThreshold() internal view returns (uint256) {
-        return (shareToken.totalSupply() * QUORUM_BPS) / 10000;
+        uint256 supply = shareToken.totalSupply();
+        return (supply / 10_000) * QUORUM_BPS
+            + ((supply % 10_000) * QUORUM_BPS + 9_999) / 10_000;
     }
 
     // ================================================================
@@ -277,8 +279,7 @@ contract QuadraticGovernorTest is LAFTestBase {
 
     // ================================================================
     //  7.3 #6  test_resolveCheckpoint_defaultsToContinue_ifQuorumNotMet
-    //  Limitation 5. Needs a holder whose sqrt weight is below 20% of
-    //  1 ETH out of 101 ETH is below the >50% supply quorum.
+    //  Limitation 5. A 1 ETH holder out of 101 ETH is below the >50% supply quorum.
     // ================================================================
 
     function test_resolveCheckpoint_defaultsToContinue_ifQuorumNotMet() public {

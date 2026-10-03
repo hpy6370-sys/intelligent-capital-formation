@@ -77,6 +77,12 @@ Rule 4. The existing accounting and terminal-state invariants also run.
 On 2026-09-27, Foundry 1.8.3 with solc 0.8.28 reported 84 passing tests,
 zero failures, and 10 passing invariant properties (128 runs, depth 64).
 
+The 2026-10-03 contract-hardening changes pin every repository-owned Solidity
+file (contracts, interfaces, scripts, and tests) to exact pragma 0.8.28,
+validate basis-point constructor parameters, and round the governance quorum
+threshold up. The 2026-09-27 result predates these changes; no build or test
+run is claimed for the hardened revision in this repository state.
+
 The v5 Monte Carlo simulator has **not** been revised to use these rules.
 Its reported recovery, vote concentration and terminal rates cannot be used
 to claim an improvement for the current contracts. The next research step is
