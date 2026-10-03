@@ -80,8 +80,10 @@ zero failures, and 10 passing invariant properties (128 runs, depth 64).
 The 2026-10-03 contract-hardening changes pin every repository-owned Solidity
 file (contracts, interfaces, scripts, and tests) to exact pragma 0.8.28,
 validate basis-point constructor parameters, and round the governance quorum
-threshold up. The 2026-09-27 result predates these changes; no build or test
-run is claimed for the hardened revision in this repository state.
+threshold up. A local review run on 2026-10-03 with Foundry 1.8.3 and solc
+0.8.28 compiled the hardened tree and passed 95 tests, including 10 invariant
+properties (128 runs, depth 64). The earlier 2026-09-27 result predates these
+changes; the raw output from the 2026-10-03 run is not checked in.
 
 The v5 Monte Carlo simulator has **not** been revised to use these rules.
 Its reported recovery, vote concentration and terminal rates cannot be used

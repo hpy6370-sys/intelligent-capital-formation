@@ -9,6 +9,16 @@ import {LAFVault} from "../../src/LAFVault.sol";
  * @notice Unit tests for LAFVault (Layer 1) — §7.1 of laf_solidity_design.md.
  */
 contract LAFVaultTest is LAFTestBase {
+    function test_constructorRevertsWhenRageQuitAutoPauseBpsExceedsMaximum() public {
+        vm.expectRevert(abi.encodeWithSelector(LAFVault.InvalidBasisPoints.selector, 10_001));
+        new LAFVault(admin, team, shareToken, 10_001, POOL_DEPLETION_BPS, MAX_PAUSE_DURATION);
+    }
+
+    function test_constructorRevertsWhenPoolDepletionBpsExceedsMaximum() public {
+        vm.expectRevert(abi.encodeWithSelector(LAFVault.InvalidBasisPoints.selector, 10_001));
+        new LAFVault(admin, team, shareToken, RAGE_QUIT_AUTO_PAUSE_BPS, 10_001, MAX_PAUSE_DURATION);
+    }
+
     // ================================================================
     //                         DEPOSIT TESTS
     // ================================================================
