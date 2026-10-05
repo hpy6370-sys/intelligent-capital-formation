@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity 0.8.28;
 
 import {LAFTestBase} from "../LAFTestBase.sol";
 import {LAFVault} from "../../src/LAFVault.sol";
@@ -25,6 +25,45 @@ contract QuadraticGovernorTest is LAFTestBase {
     IQuadraticGovernor.CheckpointAction constant DECREASE_RATE = IQuadraticGovernor.CheckpointAction.DECREASE_RATE;
     IQuadraticGovernor.CheckpointAction constant PAUSE_FOR_AUDIT = IQuadraticGovernor.CheckpointAction.PAUSE_FOR_AUDIT;
     IQuadraticGovernor.CheckpointAction constant HALT = IQuadraticGovernor.CheckpointAction.HALT;
+
+    function _deployGovernor(uint256 quorumBps, uint256 majorityBps) internal returns (QuadraticGovernor) {
+        return new QuadraticGovernor(
+            admin,
+            vault,
+            shareToken,
+            CHECKPOINT_INTERVAL,
+            CHECKPOINT_WINDOW,
+            quorumBps,
+            majorityBps,
+            DEFAULT_PAUSE_PERIOD,
+            SIGNAL_RATE_LIMIT
+        );
+    }
+
+    function test_constructorRevertsWhenQuorumBpsIsZero() public {
+        vm.expectRevert(abi.encodeWithSelector(QuadraticGovernor.InvalidBasisPoints.selector, 0));
+        _deployGovernor(0, MAJORITY_BPS);
+    }
+
+    function test_constructorRevertsWhenQuorumBpsExceedsMaximum() public {
+        vm.expectRevert(abi.encodeWithSelector(QuadraticGovernor.InvalidBasisPoints.selector, 10_001));
+        _deployGovernor(10_001, MAJORITY_BPS);
+    }
+
+    function test_constructorRevertsWhenMajorityBpsIsBelowHalf() public {
+        vm.expectRevert(abi.encodeWithSelector(QuadraticGovernor.InvalidBasisPoints.selector, 4_999));
+        _deployGovernor(QUORUM_BPS, 4_999);
+    }
+
+    function test_constructorRevertsWhenMajorityBpsIsAtMaximum() public {
+        vm.expectRevert(abi.encodeWithSelector(QuadraticGovernor.InvalidBasisPoints.selector, 10_000));
+        _deployGovernor(QUORUM_BPS, 10_000);
+    }
+
+    function test_constructorAcceptsMaximumQuorumBps() public {
+        QuadraticGovernor configured = _deployGovernor(10_000, MAJORITY_BPS);
+        assertEq(configured.quorumBps(), 10_000);
+    }
 
     // ---- Helpers ----
 
@@ -68,7 +107,9 @@ contract QuadraticGovernorTest is LAFTestBase {
     }
 
     function _quorumThreshold() internal view returns (uint256) {
-        return (shareToken.totalSupply() * QUORUM_BPS) / 10000;
+        uint256 supply = shareToken.totalSupply();
+        return (supply / 10_000) * QUORUM_BPS
+            + ((supply % 10_000) * QUORUM_BPS + 9_999) / 10_000;
     }
 
     // ================================================================
@@ -102,6 +143,24 @@ contract QuadraticGovernorTest is LAFTestBase {
         emit IQuadraticGovernor.Voted(id, alice, HALT, wAlice);
         _vote(alice, id, HALT);
         assertEq(governor.tallies(id, HALT), wAlice);
+    }
+
+    function test_resolveCheckpointRoundsQuorumUp() public {
+        // A 5,001 / 10,001 vote is below a 50.01% quorum: ceil(5001.5001) = 5002.
+        // The former floor calculation would have accepted exactly 5,001 votes.
+        vm.prank(alice);
+        vault.deposit{value: 5_001}();
+        vm.prank(bob);
+        vault.deposit{value: 5_000}();
+        vm.prank(admin);
+        vault.closeFunding(RATE_PER_SECOND);
+
+        uint256 id = _openScheduled();
+        _initiate(alice, id, HALT, 0);
+        _vote(alice, id, HALT);
+        _closeAndResolve(id);
+
+        assertEq(uint256(_resolvedAction(id)), uint256(CONTINUE), "quorum must round up");
     }
 
     function test_transferredSharesHaveSnapshotVotes() public {
@@ -277,8 +336,7 @@ contract QuadraticGovernorTest is LAFTestBase {
 
     // ================================================================
     //  7.3 #6  test_resolveCheckpoint_defaultsToContinue_ifQuorumNotMet
-    //  Limitation 5. Needs a holder whose sqrt weight is below 20% of
-    //  1 ETH out of 101 ETH is below the >50% supply quorum.
+    //  Limitation 5. A 1 ETH holder out of 101 ETH is below the >50% supply quorum.
     // ================================================================
 
     function test_resolveCheckpoint_defaultsToContinue_ifQuorumNotMet() public {

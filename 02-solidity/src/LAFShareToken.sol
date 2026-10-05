@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity 0.8.28;
 
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {ERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
@@ -12,7 +12,7 @@ import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
  * @notice ERC20 share token representing investor stakes in the LAF vault.
  *
  * Minted on deposit (by the vault), burned on rage quit (by the rage-quit module).
- * Inherits ERC20Votes for snapshot-based quadratic governance voting.
+ * Inherits ERC20Votes for share-weighted snapshot governance voting.
  *
  * New holders are auto-delegated on mint or transfer so their shares count
  * toward snapshot voting without a separate transaction.
