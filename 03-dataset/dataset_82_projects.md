@@ -1,10 +1,20 @@
-# Capstone Dataset: On-Chain Capital Formation Projects
+# Capstone Dataset: On-Chain Capital Formation Inventory
 
-> Complete dataset (the initial 50 projects, merged with the expansion and the 2026-08-31 verification and additions)
+> Working inventory (the initial 50 records, merged with the expansion and the 2026-08-31 verification and additions)
 > 
-> Total: 82 projects (ICO 18 | RDA 14 | Bonding Curve 16 | DAICO 11 | LBP 23)
+> Total: 82 category rows (ICO 18 | RDA 14 | Bonding Curve 16 | DAICO 11 | LBP 23)
 > 
 > Last updated: 2026-08-31
+
+> **Unit-of-analysis caveat:** these 82 rows are not 82 unique projects or
+> completed fundraising campaigns. Some entities appear in multiple categories;
+> the inventory also includes platforms, proposals, governance events, and
+> aggregate records. Category counts and raised-amount summaries below are
+> descriptive inventory totals, not independent-project denominators or
+> campaign-level estimates. Stable entity/campaign identifiers, deduplication,
+> and eligibility decisions are pending. The failure taxonomy has not yet been
+> applied. See [`FAILURE-CODING-CODEBOOK.md`](FAILURE-CODING-CODEBOOK.md) for a
+> proposed coding protocol.
 
 ---
 
@@ -12,7 +22,9 @@
 
 - Amounts marked `~` are approximate
 - Entries marked "undisclosed" could not be verified from public sources
-- Some projects use hybrid mechanisms (e.g. Aavegotchi appears under both DAICO and Bonding Curve); classification follows the primary fundraising mechanism
+- Some entities use hybrid mechanisms or appear in multiple categories (e.g. Aavegotchi under DAICO and Bonding Curve); cross-category rows are not unique observations
+- The inventory mixes project and campaign entries with platform, proposal, governance-event, and aggregate records; use the record-type distinction in `FAILURE-CODING-CODEBOOK.md` before computing campaign-level statistics
+- The failure-mode taxonomy in the proposal is a draft; no row has been classified with the operational protocol yet
 - Status reflects project activity as of mid-2026, not token price performance
 - All amounts were cross-checked on 2026-08-31, with source and confidence rating recorded for each row
 
@@ -217,7 +229,7 @@ ICOVO's failed raise ($803K against a $14.3M goal) is itself evidence that the m
 | LBP | 23 | ~$468M | $12.3M | $547K - $139M | 20 | 3 |
 | **Total** | **82** | **~$11.0B** | n/a | n/a | **61** | **21** |
 
-> Note: Aavegotchi ($30M) appears under both DAICO and Bonding Curve, and Bancor ($153M) under both ICO and Bonding Curve. The deduplicated total raised is about $10.8B.
+> Note: Aavegotchi ($30M) appears under both DAICO and Bonding Curve, and Bancor ($153M) under both ICO and Bonding Curve. The current file estimates a deduplicated raised total of about $10.8B; this has not been recomputed from a normalized campaign-level table. Treat it as provisional.
 > 
 > Note: row numbers overlap across categories (ICO #15-18 vs RDA #15-18, BC #42-43 vs DAICO #42, DAICO #52 vs LBP #52); rows will be renumbered 1-82 consecutively before the dataset goes into the report.
 
