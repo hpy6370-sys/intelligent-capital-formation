@@ -18,3 +18,6 @@ Thumbs.db
 # Secrets (none expected in this repo)
 .env
 .env.*
+
+# Ad-hoc verification output (dated evidence is committed separately)
+02-solidity/test-output/current/

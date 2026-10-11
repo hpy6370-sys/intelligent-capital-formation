@@ -109,9 +109,11 @@ outcome, calibration input, or empirical observation.
    new version passes the fixtures and accounting checks. Keep prior outputs
    labeled historical and do not replace them in place.
 
-The current contract note reports a 2026-09-27 Foundry result of 84 passing
-tests and 10 invariant properties; `02-solidity/test-output/forge-test.txt` is
-an older 2026-09-08 log. Refresh and reconcile the checked-in validation record
-before claiming a single current verification artifact. The simulator work
-should cite the current contract note and its corresponding rule tests rather
-than infer correctness from the older log.
+A fresh 11 October record is available in
+`02-solidity/test-output/verification-2026-10-11/`: 95 passing tests and ten
+passing invariant properties with Foundry v1.8.5. The raw log and metadata
+identify the tested source, seed, compiler and dependency revisions.
+`02-solidity/test-output/forge-test.txt` remains the older 8 September log.
+Use the dated verification record and current rule tests as functional
+evidence; this does not implement the model-alignment plan or produce new
+economic outcomes.

@@ -1,0 +1,39 @@
+name: Verify Solidity prototype
+
+on:
+  push:
+    paths:
+      - '02-solidity/**'
+      - 'scripts/verify_prototype.py'
+      - '.github/workflows/verify-prototype.yml'
+  pull_request:
+    paths:
+      - '02-solidity/**'
+      - 'scripts/verify_prototype.py'
+      - '.github/workflows/verify-prototype.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.8.5
+      - name: Verify pinned dependencies and run the current suite
+        run: python3 scripts/verify_prototype.py --install-deps --output "$RUNNER_TEMP/laf-verification"
+      - name: Retain raw output and provenance
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: laf-verification-${{ github.sha }}
+          path: ${{ runner.temp }}/laf-verification/
+          if-no-files-found: warn

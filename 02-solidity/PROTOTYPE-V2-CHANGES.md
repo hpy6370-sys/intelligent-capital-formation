@@ -91,3 +91,14 @@ to claim an improvement for the current contracts. The next research step is
 to rerun the same agents and failure scenarios under both revisions, with
 explicit false-pause and honest-team funding outcomes. This is a prototype,
 not an audited deployment.
+
+## 11 October verification evidence
+
+The contract rules are unchanged. `VERIFICATION.md` and
+`../scripts/verify_prototype.py` add a pinned-dependency, fixed-seed runner,
+with a GitHub Actions workflow and a dated raw log plus metadata in
+`test-output/verification-2026-10-11/`. Foundry v1.8.5 / solc 0.8.28 reports
+95 passing tests, no failures or skips, and ten passing invariant properties
+(128 runs / depth 64). Newer Forge groups those properties in one campaign;
+counts across toolchain versions need not use the same presentation. This is
+functional verification, not a rerun of the current-rule economic model.

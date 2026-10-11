@@ -65,25 +65,31 @@ python sim_v5_sensitivity.py > output/simulation_v5_sensitivity.txt   # ~7 s
 PYTHONIOENCODING=utf-8 python verify_daico_patch.py             # ~4 min; UTF-8 needed for its console output on Windows
 ```
 
-Solidity toolchain: source, test, and deploy files declare exact
-`pragma solidity 0.8.28`, matching the solc 0.8.28 pin in `foundry.toml`.
-`foundry.lock` records the exact forge-std and OpenZeppelin revisions. The
-archived 2026-09-08 test log comes from Foundry 1.7.1 and the earlier
-prototype. The 2026-09-27 revision note reports 84 passing tests with Foundry
-1.8.3, before the hardening changes below. A local review run of the hardened
-2026-10-03 tree with Foundry 1.8.3 and solc 0.8.28 compiled successfully and
-passed 95 tests, including 10 invariant properties (128 runs, depth 64); its
-raw output is not checked in. The Foundry binary version is not pinned by this
-project.
+Solidity toolchain: all repository-owned Solidity files and `foundry.toml`
+use solc 0.8.28. The verification workflow pins Foundry v1.8.5 and restores
+dependencies at the exact Git revisions in `foundry.lock`.
 
-```
-cd 02-solidity
-forge install foundry-rs/forge-std@v1.16.2 OpenZeppelin/openzeppelin-contracts@v5.7.0 --no-git   # versions as in foundry.lock
-forge build
-forge test          # current suite; add -vv for the stress-test logs
+From the repository root, with `forge` on PATH:
+
+```sh
+python3 scripts/verify_prototype.py --install-deps
 ```
 
-The 2026-09-08 packaging run had 83 passing tests on the prior prototype. The current contract suite adds regression tests for the revised rules; its latest result is recorded in `02-solidity/PROTOTYPE-V2-CHANGES.md`.
+The runner verifies clean dependency checkouts, uses seed `0x6131`, enforces
+256 fuzz runs and invariant settings of 128 runs / depth 64, and saves raw
+output plus JSON provenance to `02-solidity/test-output/current/`. It exits
+nonzero for failed/skipped tests, missing invariants, changed source during
+the run, or an unexpected compiler/sampling configuration. Existing vendored
+folders without Git metadata are rejected: use a separate clean clone rather
+than replacing an existing working dependency directory.
+
+A dated local verification is retained in
+`02-solidity/test-output/verification-2026-10-11/`. Its metadata identifies
+the Git base revision, working-tree state, tested source hash, toolchain,
+dependency revisions and log hash. The raw 2026-09-08 `forge-test.txt` remains
+an archive of the earlier prototype. GitHub Actions repeats the same checks
+for relevant pushes/PRs and retains its own per-commit evidence as an artifact.
+See `02-solidity/VERIFICATION.md` for reproduction and interpretation.
 
 ## Key results (each with the file that produces it)
 
@@ -102,7 +108,7 @@ The 2026-09-08 packaging run had 83 passing tests on the prior prototype. The cu
 - The results are most sensitive to assumption A4 (DAICO's 3 % per-round destroy propensity translated into loss of confidence): at scale 0 LAF collapses exactly to the DAICO share distribution (checked), and the large-profile terminal cliff sits between scale 0.25 and 0.5 (`simulation_v5_sensitivity.txt`).
 
 **Solidity prototype, 2026-09-08 baseline** (`02-solidity/test-output/forge-test.txt`; see `02-solidity/PROTOTYPE-V2-CHANGES.md` for the current code)
-- 83/83 tests pass: `LAFVaultTest` 21 (incl. 1 fuzz), `RageQuitTest` 9, `QuadraticGovernorTest` 17 (added 2026-09-08 from section 7.3 of the design document: window timing, sqrt weighting, quorum and majority, all five resolve actions, Rule 3 rate limit, role checks; one test is renamed to record that a single 40 % holder meets quorum alone, and one is a regression for the unopened-checkpoint fix below), `SignalMonitorTest` 13 (v2 multi-reporter: registration, quorum bounds, median, staleness, flag clearing, role-mutation guards), `CrossLayerTest` 7, `StressTest` 5 (bank run, Sybil checkpoint, signal gaming, cascade, governance apathy), `LAFInvariant` 11 (10 invariants plus a handler sanity test).
+- Historical 8 September baseline: 83/83 tests passed: `LAFVaultTest` 21 (incl. 1 fuzz), `RageQuitTest` 9, `QuadraticGovernorTest` 17 (added 2026-09-08 from section 7.3 of the design document: window timing, sqrt weighting, quorum and majority, all five resolve actions, Rule 3 rate limit, role checks; one test is renamed to record that a single 40 % holder meets quorum alone, and one is a regression for the unopened-checkpoint fix below), `SignalMonitorTest` 13 (v2 multi-reporter: registration, quorum bounds, median, staleness, flag clearing, role-mutation guards), `CrossLayerTest` 7, `StressTest` 5 (bank run, Sybil checkpoint, signal gaming, cascade, governance apathy), `LAFInvariant` 11 (10 invariants plus a handler sanity test).
 - Fixed on 2026-09-08 while writing the governor tests: `resolveCheckpoint()` did not revert for a checkpoint id that had never been opened, so anyone could call it every 90 days, move `lastCheckpointEnd` forward and defer the scheduled checkpoint indefinitely (signal-triggered checkpoints were unaffected). A `windowStart == 0` guard now reverts with `WindowNotOpen`; `test_resolveCheckpoint_revertsForUnopenedId` pins it.
 - Core invariant held over 8,192 random calls per property: `totalDeposited == totalClaimedByTeam + totalExitedViaRageQuit + vault balance` (`invariant_vaultBalanceEqualsAccountingIdentity`), plus outflow bound, terminal one-way, no claim while paused/terminal, share supply bounded.
 - Working flow of the prototype: `deposit()` mints `LAFShareToken` 1:1 -> `closeFunding()` starts streaming -> team `claim()` -> holders `rageQuit()` at any time -> `openCheckpointWindow()` every 90 days (or `SignalMonitor.evaluate()` -> `triggerEarlyCheckpoint()`) -> `initiateAuditVote()` / `vote()` -> `resolveCheckpoint()` applies the action to the vault; `checkPoolDepletion()` and `resumeIfTimedOut()` are permissionless. `test/integration/CrossLayerTest.sol` walks through these paths end to end.
@@ -150,11 +156,10 @@ and the revised Solidity prototype.
    and jurisdictional analysis (RQ3/RQ4); and distinguish analytical estimates
    from simulation output and observed empirical evidence.
 
-**Evidence boundary:** the latest contract note reports 84 passing tests on
-2026-09-27, while the committed `02-solidity/test-output/forge-test.txt` is a
-2026-09-08 run with 83 passing tests. The repository records the newer result in
-the revision note, but the checked-in console log is historical. No test suite
-was run as part of this documentation update.
+**Evidence boundary:** the dated 11 October verification includes raw output
+and provenance for the current Solidity sources. Historical v5 simulation
+results still describe the earlier rules; passing contract tests do not
+establish revised investor recovery or project-success rates.
 
 ## Not included / available on request
 

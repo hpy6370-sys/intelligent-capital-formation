@@ -1,0 +1,86 @@
+{
+  "recorded_at_utc": "2026-10-11T03:59:01.429620+00:00",
+  "git_base_commit": "d1abb2f56ece9f9ba078c1acfdc9ea39ab64ed54",
+  "worktree_changes": [
+    "M .gitignore",
+    " M 02-solidity/PROTOTYPE-V2-CHANGES.md",
+    " M README.md",
+    "?? .github/",
+    "?? 02-solidity/VERIFICATION.md",
+    "?? 02-solidity/test-output/verification-2026-10-11/",
+    "?? scripts/"
+  ],
+  "tested_source_sha256": "51282d21c4e6e114f9c825062cc861c2fc8e07b7122a55d4e0eebceb29a997fd",
+  "verification_runner_sha256": "1f3eaf5c3d3c532a0149c6514a2ef78e0ebca2d264d373cf8399f24bed4ea773",
+  "tested_files": [
+    "foundry.lock",
+    "foundry.toml",
+    "script/DeployLAF.s.sol",
+    "src/LAFShareToken.sol",
+    "src/LAFVault.sol",
+    "src/QuadraticGovernor.sol",
+    "src/RageQuitModule.sol",
+    "src/SignalMonitor.sol",
+    "src/interfaces/ILAFVault.sol",
+    "src/interfaces/IQuadraticGovernor.sol",
+    "src/interfaces/IRageQuit.sol",
+    "src/interfaces/ISignalMonitor.sol",
+    "test/LAFTestBase.sol",
+    "test/integration/CrossLayerTest.sol",
+    "test/invariant/LAFHandler.sol",
+    "test/invariant/LAFInvariant.t.sol",
+    "test/stress/StressTest.sol",
+    "test/unit/LAFVaultTest.sol",
+    "test/unit/QuadraticGovernorTest.sol",
+    "test/unit/RageQuitTest.sol",
+    "test/unit/SignalMonitorTest.sol"
+  ],
+  "source_unchanged_during_run": true,
+  "forge_version": "forge Version: 1.8.5\nCommit SHA: 51a52c59cffd940f76eddd0b4bb1791aa4b5ac7f\nBuild Timestamp: 2026-10-05T17:07:33.315474000Z (1791220053)\nBuild Profile: dist",
+  "compiler": "0.8.28",
+  "evm_version": "prague",
+  "optimizer": false,
+  "optimizer_runs": 200,
+  "dependencies": {
+    "forge-std": {
+      "revision": "bf647bd6046f2f7da30d0c2bf435e5c76a780c1b",
+      "solidity_sha256": "10e874e60bd53a9452ee97ba53f8032875040bcf28e2df3633817c5b88fd111a"
+    },
+    "openzeppelin-contracts": {
+      "revision": "cab19933c33c2ad1d4c7a84864a3601dddfd16f3",
+      "solidity_sha256": "95366343ceb7155e366353b6476a9d144ddff254d807a948a73ef9be475f0dd6"
+    }
+  },
+  "command": [
+    "forge",
+    "test",
+    "-vv",
+    "--fuzz-seed",
+    "0x6131"
+  ],
+  "fuzz_seed": "0x6131",
+  "fuzz_runs": 256,
+  "invariant_runs": 128,
+  "invariant_depth": 64,
+  "exit_code": 0,
+  "counts": {
+    "passed": 95,
+    "failed": 0,
+    "skipped": 0,
+    "total": 95
+  },
+  "passing_invariants": [
+    "invariant_claimableBoundedByUnreleased",
+    "invariant_noClaimableWhenPausedOrTerminal",
+    "invariant_outflowNeverExceedsDeposits",
+    "invariant_shareSupplyBounded",
+    "invariant_signalFlagsBackedByQuorum",
+    "invariant_terminalImpliesZeroRate",
+    "invariant_terminalIsOneWay",
+    "invariant_unreleasedBalanceConsistent",
+    "invariant_vaultBalanceEqualsAccountingIdentity",
+    "invariant_vaultBalanceNonNegative"
+  ],
+  "log_sha256": "6c352c4712a749ce08e896153da063c37ee875f9763f50e7e53124eb602d0bba",
+  "verified": true
+}
