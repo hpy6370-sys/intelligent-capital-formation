@@ -1,0 +1,937 @@
+Capstone ICF Simulation v6.0 -- current-rule LAF on the v5 agents
+DAICO vs Reverse Dutch Auction vs LAF | Monte Carlo N=50 (headline baseline N=200, scenarios N=50)
+
+Rulesets (LAF only; DAICO / RDA are v4's and identical to simulation_v5_results.txt):
+  v5       historical v5 engine (sqrt votes, 20 % sqrt quorum, step 0.3x, cap 15 % of raise per round,
+           Rule 2 vs checkpoint snapshot, Rule 4 vs 10 % of deposits). Reproduces v5 exactly.
+  current  current contracts with deployment defaults: linear snapshot votes, quorum 50.01 % of snapshot
+           supply, step 0.5x initial, cap 2x initial, initial rate <= raise / (2 x 365 d), Rule 2 over
+           today + 29 days vs the pre-exit balance, Rule 4 vs 10 % of the unvested amount, PAUSE
+           vote cannot extend an active pause, terminal resolutions record CONTINUE.
+  parity   'current' with the minimum vesting duration shortened per profile so that the v5 tap rate
+           is admissible (isolates the rule changes from the rate clamp).
+
+  v3   : horizon 350 d; v5 rate 1.000% of raise per round; 365-d bound 0.959%; current initial rate 0.959% (clamped); parity minimum duration 350.0 d
+  small: horizon 140 d; v5 rate 2.000% of raise per round; 365-d bound 0.959%; current initial rate 0.959% (clamped); parity minimum duration 175.0 d
+  large: horizon 560 d; v5 rate 0.800% of raise per round; 365-d bound 0.959%; current initial rate 0.800% (admissible); parity minimum duration 365.0 d
+
+v6 assumptions (agent rules A1-A11 are printed in simulation_v5_results.txt):
+  B1 Agents, seeds, raise and agent rules are v5's (A1, A4-A6, A10): same population per seed, same
+     exit / voting rules, no secondary market, full-stake rage quit. RDA keeps its own population.
+  B2 Time: 1 round = 7 days. All exits of a round share one calendar-day bucket stamped with the
+     round's day, so the 30-day Rule 2 lookback (today + 29 days) spans 5 rounds (days d-28..d).
+     A 60-day pause stops 8 rounds (56 d) of accrual, a 30-day pause 4 rounds (28 d).
+  B3 Keepers: checkPoolDepletion, resumeIfTimedOut, openCheckpointWindow, resolveCheckpoint and
+     SignalMonitor.evaluate are permissionless; they are assumed to be called every round, without
+     delay. The team claims every round before investors act (as in v5).
+  B4 Initial-rate bound: rate <= raise / (2 x minimumVestingDuration). With the deployed 365 days that
+     is 0.959 % of the raise per round. 'current' clamps the v5 tap rate to it (v3 1.0 % and small
+     2.0 % are above it: closeFunding would revert); 'parity' keeps the v5 tap rate by shortening the
+     minimum duration to 350 d (v3) / 175 d (small). large (0.8 %) is admissible in both.
+  B5 Votes: linear snapshot shares. Only current holders vote (on-chain, holders who exit after the
+     snapshot keep their vote; assumed not to use it). Quorum = cast weight >= 50.01 % of snapshot
+     supply (float; the contract rounds the threshold up). Winner needs > 50 % of cast weight.
+  B6 Signals: one honest reporter delivers v5's proxies every round (the deploy script registers no
+     reporter). COMMIT_INACTIVITY (warning 60 d, critical 120 d) is evaluated only in S2 / S3, where
+     an exogenous commit process exists. TEAM_OUTFLOW (warning 3x) cannot fire under the 2x cap.
+  B7 Horizon: outcomes are measured at the v5 horizon (350 / 140 / 560 d). 'Left' = funds still in
+     the vault at the horizon; they are not lost: they keep streaming to the team or remain
+     redeemable by holders after the horizon.
+  S1 Honest team + bank run: A4 discontent off; in one round (day 35 or day 126) every non-whale
+     holder exits with probability q (0.3 / 0.5) for an exogenous reason (market panic). Compared with
+     the same seed and rules without the panic.
+  S2 Malicious team: initial rate at the 365-day bound for every ruleset (the maximum the current
+     contract admits), no delivery from day 0: no commits, so COMMIT_INACTIVITY = days since close.
+     a: investors react only through signals (A4 off); b: confidence tracks health (A4 at v5 level).
+  S3 Gradual deterioration: project health H = 1 until onset ~ U(60, 240) d, then falls linearly to 0
+     over 180 d. The team commits on each day with probability H, so COMMIT_INACTIVITY is days since
+     the last commit. Health is exogenous (investor exits do not change it). a: A4 off; b: A4 scale =
+     1 - H (confidence tracks health, zero while healthy).
+  S5 Whale concentration: one team-aligned holder with 40 % or 55 % of the raise is added to the
+     baseline population (in 1 wallet or split over 10). It never exits before terminal, opens a
+     ballot in every window (any holder may) and votes INCREASE_RATE first; others follow v5 rules.
+
+Rule fixtures: 14/14 passed
+  F1   40 % holder cannot reach quorum; 50.02 % can; v5 sqrt quorum met by 40 %  [QuadraticGovernorTest.test_singleFortyPercentHolderCannotReachQuorum]
+  F2   normal vesting (95 of 100 claimed) is not terminal; v5 rule is  [LAFVaultTest.test_normalVestingDoesNotTriggerTerminal]
+  F3   PAUSE vote during a Rule 2 pause keeps reason and deadline; v5 overwrote  [QuadraticGovernorTest.test_pauseVoteDuringExistingPauseResolvesWithoutExtendingDeadline]
+  F4   INCREASE at the 2x cap resolves and saturates  [QuadraticGovernorTest.test_increaseAtRateCapStillResolves]
+  F5   initial rate above raise/(2 x 365 d) rejected (clamped); parity duration admits v5 rate  [LAFVaultTest.test_closeFunding_rejectsRateAboveTheCommittedVestingLimit]
+  F6   rage quit of 30 % pauses 60 d before any checkpoint; 20 % does not; v5 inactive  [RageQuitTest.test_rageQuit_crossing25PercentThreshold_autoPausesVault / belowThreshold]
+  F7   checkpoint resolving after terminal records CONTINUE, rate stays 0  [QuadraticGovernorTest.test_checkpointResolutionCannotReviveTerminalVault]
+  F8   exactly 25 % does not pause, 25.001 % does (strict >)  [LAFVault.withdrawForRageQuit (strict comparison)]
+  F9   exits aged 29 days count, aged 30 days do not  [RageQuitTest.test_rageQuitLookbackExpiresOldExits]
+  F10  Rule 4: remaining = 10 % of unvested is not terminal, below it is  [LAFVaultTest.test_checkPoolDepletion_noOpAboveThreshold / triggersTerminalBelowThreshold]
+  F11  rage quit pays pro rata during a pause and in terminal  [RageQuitTest.test_rageQuit_availableDuringPause / availableDuringTerminal]
+  F12  uninitiated window and missed quorum resolve CONTINUE  [QuadraticGovernorTest.test_resolveCheckpoint_defaultsToContinue_ifQuorumNotMet]
+  F13  passed PAUSE pauses 30 d; no pause on a terminal vault  [LAFVaultTest.test_pauseForAudit_blocksClaimDuringPause / test_claim_revertsAfterTerminal]
+  F14  splitting 40 % over 10 wallets: linear weight unchanged, sqrt weight x sqrt(10)  [QuadraticGovernorTest.test_votingWeight_isLinearBalance]
+
+Column key: TeamRcv share of raise claimed by the team; RecovQ mean payout/deposit of quitters;
+  RecovAll payouts / raise; Quit share of holders who exited; Term share of runs reaching Rule 4;
+  TDay mean terminal day (terminal runs); Bal@T vault balance at terminal / raise; CP checkpoints
+  per run; Quorum share of initiated windows meeting quorum; PAUSE / INC passed per run; R2pre /
+  R2post Rule 2 pauses per run before / after the first window opened; PdDays paused days per run;
+  Sig signal-triggered windows per run; WhVote whale share of cast weight; Left vault balance at
+  the horizon / raise (not a loss: still streaming or redeemable).
+
+############################################################
+# v3 defaults (uncalibrated, for reference)
+############################################################
+
+============================================================
+  Baseline (no behavioral effects)
+============================================================
+  DAICO:
+    Pool remaining:    46.15
+    Released:          29.86
+    Release efficiency:33.2%
+    Destroyed by vote: 24%
+    [D1] Gini coefficient:  0.487
+    [D1] Top 10% share:     39.0%
+    [D2] Whale dominance:   40.5%
+    [D3] Capital retention: 38.6%
+    [D3] ROI variance:      0.0000
+  RDA:
+    Total raised:      133.63
+    Tokens sold:       27.71
+    Participants:      24.4
+    [D1] Gini coefficient:  0.516
+    [D1] Top 10% share:     36.4%
+    [D2] Price volatility:  0.0311
+    [D2] Whale dominance:   38.8%
+    [D2] Timing corr:       -0.011
+    [D3] ROI variance:      0.0731
+  [D1]=Allocation Efficiency  [D2]=Manipulation Resistance  [D3]=Incentive Alignment
+  LAF (v6 rule engines, same agents and seeds):
+    rules    |  TeamRcv   RecovQ RecovAll     Quit     Term     TDay    Bal@T       CP   Quorum    PAUSE      INC    R2pre   R2post   PdDays      Sig   WhVote     Left
+    v5       |    43.4%    74.5%    34.0%    45.5%       8%      257     5.8%     2.96     100%     0.52     0.20     0.00     0.66     44.4     0.06      74%    22.6%
+    current  |    40.4%    74.0%    37.7%    47.7%      10%      213     4.9%     2.94      75%     0.38     0.00     0.00     0.74     43.4     0.06      83%    21.9%
+    parity   |    42.1%    72.9%    37.1%    47.7%      10%      211     4.8%     2.94      75%     0.38     0.00     0.00     0.74     43.4     0.06      83%    20.7%
+
+============================================================
+  FOMO = 0.3
+============================================================
+  DAICO:
+    Pool remaining:    45.17
+    Released:          35.77
+    Release efficiency:40.1%
+    Destroyed by vote: 14%
+    [D1] Gini coefficient:  0.487
+    [D1] Top 10% share:     39.2%
+    [D2] Whale dominance:   40.8%
+    [D3] Capital retention: 43.3%
+    [D3] ROI variance:      0.0000
+  RDA:
+    Total raised:      143.82
+    Tokens sold:       25.31
+    Participants:      30.0
+    [D1] Gini coefficient:  0.414
+    [D1] Top 10% share:     29.6%
+    [D2] Price volatility:  0.0311
+    [D2] Whale dominance:   30.9%
+    [D2] Timing corr:       -0.002
+    [D3] ROI variance:      0.0865
+  [D1]=Allocation Efficiency  [D2]=Manipulation Resistance  [D3]=Incentive Alignment
+  LAF (v6 rule engines, same agents and seeds):
+    rules    |  TeamRcv   RecovQ RecovAll     Quit     Term     TDay    Bal@T       CP   Quorum    PAUSE      INC    R2pre   R2post   PdDays      Sig   WhVote     Left
+    v5       |    45.5%    75.1%    29.9%    39.7%       2%      350     9.3%     3.00     100%     0.36     0.30     0.00     0.60     37.4     0.04      69%    24.6%
+    current  |    42.2%    73.8%    34.9%    45.3%       8%      233     5.7%     2.96      79%     0.30     0.02     0.00     0.62     34.7     0.04      78%    22.9%
+    parity   |    44.0%    72.8%    34.4%    45.3%       8%      229     5.3%     2.94      80%     0.30     0.02     0.00     0.64     35.6     0.04      78%    21.6%
+
+============================================================
+  FOMO = 0.5
+============================================================
+  DAICO:
+    Pool remaining:    42.82
+    Released:          41.42
+    Release efficiency:47.1%
+    Destroyed by vote: 4%
+    [D1] Gini coefficient:  0.488
+    [D1] Top 10% share:     39.4%
+    [D2] Whale dominance:   40.9%
+    [D3] Capital retention: 48.2%
+    [D3] ROI variance:      0.0000
+  RDA:
+    Total raised:      143.90
+    Tokens sold:       24.31
+    Participants:      30.0
+    [D1] Gini coefficient:  0.407
+    [D1] Top 10% share:     28.4%
+    [D2] Price volatility:  0.0311
+    [D2] Whale dominance:   29.4%
+    [D2] Timing corr:       0.023
+    [D3] ROI variance:      0.0890
+  [D1]=Allocation Efficiency  [D2]=Manipulation Resistance  [D3]=Incentive Alignment
+  LAF (v6 rule engines, same agents and seeds):
+    rules    |  TeamRcv   RecovQ RecovAll     Quit     Term     TDay    Bal@T       CP   Quorum    PAUSE      INC    R2pre   R2post   PdDays      Sig   WhVote     Left
+    v5       |    46.4%    75.5%    28.5%    38.3%       2%      350     9.5%     3.00     100%     0.26     0.22     0.00     0.52     30.0     0.02      69%    25.1%
+    current  |    43.5%    74.9%    30.9%    40.6%       2%      245     4.2%     3.00      82%     0.26     0.02     0.00     0.60     31.5     0.02      79%    25.7%
+    parity   |    45.3%    73.7%    30.6%    41.3%       4%      276     5.5%     2.98      83%     0.26     0.02     0.00     0.60     31.6     0.02      79%    24.1%
+
+============================================================
+  FOMO = 0.7
+============================================================
+  DAICO:
+    Pool remaining:    42.37
+    Released:          45.05
+    Release efficiency:48.3%
+    Destroyed by vote: 10%
+    [D1] Gini coefficient:  0.489
+    [D1] Top 10% share:     39.6%
+    [D2] Whale dominance:   41.1%
+    [D3] Capital retention: 50.6%
+    [D3] ROI variance:      0.0000
+  RDA:
+    Total raised:      143.94
+    Tokens sold:       23.77
+    Participants:      30.0
+    [D1] Gini coefficient:  0.401
+    [D1] Top 10% share:     27.6%
+    [D2] Price volatility:  0.0311
+    [D2] Whale dominance:   28.4%
+    [D2] Timing corr:       0.038
+    [D3] ROI variance:      0.0904
+  [D1]=Allocation Efficiency  [D2]=Manipulation Resistance  [D3]=Incentive Alignment
+  LAF (v6 rule engines, same agents and seeds):
+    rules    |  TeamRcv   RecovQ RecovAll     Quit     Term     TDay    Bal@T       CP   Quorum    PAUSE      INC    R2pre   R2post   PdDays      Sig   WhVote     Left
+    v5       |    46.7%    76.0%    27.2%    36.5%       0%      n/a      n/a     3.00     100%     0.16     0.30     0.00     0.50     29.4     0.00      68%    26.0%
+    current  |    44.2%    74.7%    29.3%    38.1%       0%      n/a      n/a     3.00      84%     0.22     0.02     0.00     0.50     27.4     0.00      78%    26.5%
+    parity   |    46.1%    73.7%    28.8%    38.1%       0%      n/a      n/a     3.00      84%     0.22     0.02     0.00     0.50     27.4     0.00      78%    25.1%
+
+============================================================
+  FOMO=0.5 + Herding=0.3
+============================================================
+  DAICO:
+    Pool remaining:    39.02
+    Released:          46.93
+    Release efficiency:49.8%
+    Destroyed by vote: 22%
+    [D1] Gini coefficient:  0.487
+    [D1] Top 10% share:     39.2%
+    [D2] Whale dominance:   40.7%
+    [D3] Capital retention: 54.2%
+    [D3] ROI variance:      0.0000
+  RDA:
+    Total raised:      143.90
+    Tokens sold:       24.25
+    Participants:      30.0
+    [D1] Gini coefficient:  0.407
+    [D1] Top 10% share:     28.3%
+    [D2] Price volatility:  0.0311
+    [D2] Whale dominance:   29.3%
+    [D2] Timing corr:       0.020
+    [D3] ROI variance:      0.0911
+  [D1]=Allocation Efficiency  [D2]=Manipulation Resistance  [D3]=Incentive Alignment
+  LAF (v6 rule engines, same agents and seeds):
+    rules    |  TeamRcv   RecovQ RecovAll     Quit     Term     TDay    Bal@T       CP   Quorum    PAUSE      INC    R2pre   R2post   PdDays      Sig   WhVote     Left
+    v5       |    45.0%    74.4%    32.9%    51.6%       6%      275     6.7%     2.98     100%     0.44     0.24     0.00     0.54     37.2     0.04      57%    22.1%
+    current  |    42.2%    75.5%    34.8%    52.7%       4%      238     3.7%     2.98      90%     0.46     0.06     0.00     0.64     38.8     0.06      73%    23.0%
+    parity   |    44.0%    74.5%    34.3%    52.7%       4%      238     3.6%     2.98      90%     0.46     0.06     0.00     0.64     38.8     0.06      73%    21.7%
+
+============================================================
+  FOMO=0.5 + Herding=0.6
+============================================================
+  DAICO:
+    Pool remaining:    29.53
+    Released:          58.11
+    Release efficiency:61.3%
+    Destroyed by vote: 20%
+    [D1] Gini coefficient:  0.486
+    [D1] Top 10% share:     38.9%
+    [D2] Whale dominance:   40.4%
+    [D3] Capital retention: 65.9%
+    [D3] ROI variance:      0.0000
+  RDA:
+    Total raised:      143.89
+    Tokens sold:       24.27
+    Participants:      30.0
+    [D1] Gini coefficient:  0.406
+    [D1] Top 10% share:     28.4%
+    [D2] Price volatility:  0.0311
+    [D2] Whale dominance:   29.2%
+    [D2] Timing corr:       0.022
+    [D3] ROI variance:      0.0911
+  [D1]=Allocation Efficiency  [D2]=Manipulation Resistance  [D3]=Incentive Alignment
+  LAF (v6 rule engines, same agents and seeds):
+    rules    |  TeamRcv   RecovQ RecovAll     Quit     Term     TDay    Bal@T       CP   Quorum    PAUSE      INC    R2pre   R2post   PdDays      Sig   WhVote     Left
+    v5       |    45.2%    73.3%    34.5%    56.8%      10%      323     9.0%     2.98     100%     0.40     0.34     0.00     0.66     41.3     0.00      55%    20.3%
+    current  |    41.1%    74.6%    38.1%    59.0%       6%      203     1.8%     2.96      90%     0.48     0.04     0.00     0.74     44.7     0.04      71%    20.7%
+    parity   |    42.9%    73.4%    37.6%    59.3%       6%      203     1.7%     2.96      90%     0.48     0.04     0.00     0.74     44.7     0.06      71%    19.5%
+
+============================================================
+  High FOMO=0.7 + Herding=0.5
+============================================================
+  DAICO:
+    Pool remaining:    29.32
+    Released:          60.89
+    Release efficiency:64.4%
+    Destroyed by vote: 14%
+    [D1] Gini coefficient:  0.488
+    [D1] Top 10% share:     39.2%
+    [D2] Whale dominance:   40.7%
+    [D3] Capital retention: 67.1%
+    [D3] ROI variance:      0.0000
+  RDA:
+    Total raised:      143.93
+    Tokens sold:       23.74
+    Participants:      30.0
+    [D1] Gini coefficient:  0.400
+    [D1] Top 10% share:     27.6%
+    [D2] Price volatility:  0.0311
+    [D2] Whale dominance:   28.3%
+    [D2] Timing corr:       0.039
+    [D3] ROI variance:      0.0910
+  [D1]=Allocation Efficiency  [D2]=Manipulation Resistance  [D3]=Incentive Alignment
+  LAF (v6 rule engines, same agents and seeds):
+    rules    |  TeamRcv   RecovQ RecovAll     Quit     Term     TDay    Bal@T       CP   Quorum    PAUSE      INC    R2pre   R2post   PdDays      Sig   WhVote     Left
+    v5       |    45.1%    73.2%    32.2%    53.2%       4%      346     8.6%     3.00     100%     0.36     0.30     0.00     0.72     41.0     0.02      56%    22.7%
+    current  |    42.6%    73.6%    34.9%    54.7%       2%      238     3.5%     2.98      93%     0.40     0.06     0.00     0.76     40.9     0.02      72%    22.5%
+    parity   |    44.5%    72.3%    34.4%    55.0%       2%      238     3.5%     2.98      93%     0.40     0.06     0.00     0.76     40.9     0.02      72%    21.1%
+
+  Summary (v3): TeamRcv / RecovQ / Term / Quorum / Rule-2 pauses / Left, per ruleset
+  Scenario                         |                  v5                   |                current                |                parity                
+  Baseline (no behavioral effects) |  43.4%  74.5%   8% 100%  0.66  22.6%  |  40.4%  74.0%  10%  75%  0.74  21.9%  |  42.1%  72.9%  10%  75%  0.74  20.7% 
+  FOMO = 0.3                       |  45.5%  75.1%   2% 100%  0.60  24.6%  |  42.2%  73.8%   8%  79%  0.62  22.9%  |  44.0%  72.8%   8%  80%  0.64  21.6% 
+  FOMO = 0.5                       |  46.4%  75.5%   2% 100%  0.52  25.1%  |  43.5%  74.9%   2%  82%  0.60  25.7%  |  45.3%  73.7%   4%  83%  0.60  24.1% 
+  FOMO = 0.7                       |  46.7%  76.0%   0% 100%  0.50  26.0%  |  44.2%  74.7%   0%  84%  0.50  26.5%  |  46.1%  73.7%   0%  84%  0.50  25.1% 
+  FOMO=0.5 + Herding=0.3           |  45.0%  74.4%   6% 100%  0.54  22.1%  |  42.2%  75.5%   4%  90%  0.64  23.0%  |  44.0%  74.5%   4%  90%  0.64  21.7% 
+  FOMO=0.5 + Herding=0.6           |  45.2%  73.3%  10% 100%  0.66  20.3%  |  41.1%  74.6%   6%  90%  0.74  20.7%  |  42.9%  73.4%   6%  90%  0.74  19.5% 
+  High FOMO=0.7 + Herding=0.5      |  45.1%  73.2%   4% 100%  0.72  22.7%  |  42.6%  73.6%   2%  93%  0.76  22.5%  |  44.5%  72.3%   2%  93%  0.76  21.1% 
+
+############################################################
+# small_project profile (Solana/Gnosis/Abyss-scale, calibrated)
+############################################################
+
+============================================================
+  Baseline (no behavioral effects)
+============================================================
+  DAICO:
+    Pool remaining:    42762.88
+    Released:          17971.06
+    Release efficiency:23.2%
+    Destroyed by vote: 34%
+    [D1] Gini coefficient:  0.477
+    [D1] Top 10% share:     37.6%
+    [D2] Whale dominance:   38.3%
+    [D3] Capital retention: 29.2%
+    [D3] ROI variance:      0.0000
+  RDA:
+    Total raised:      91506.33
+    Tokens sold:       19411.17
+    Participants:      16.2
+    [D1] Gini coefficient:  0.544
+    [D1] Top 10% share:     38.7%
+    [D2] Price volatility:  0.0276
+    [D2] Whale dominance:   43.5%
+    [D2] Timing corr:       -0.115
+    [D3] ROI variance:      0.0513
+  [D1]=Allocation Efficiency  [D2]=Manipulation Resistance  [D3]=Incentive Alignment
+  LAF (v6 rule engines, same agents and seeds):
+    rules    |  TeamRcv   RecovQ RecovAll     Quit     Term     TDay    Bal@T       CP   Quorum    PAUSE      INC    R2pre   R2post   PdDays      Sig   WhVote     Left
+    v5       |    38.0%    74.7%    18.8%    26.7%       2%      126     3.2%     1.00     100%     0.12     0.00     0.00     0.14      7.0     0.08      80%    43.2%
+    current  |    17.9%    87.8%    22.8%    26.4%       4%      130     3.2%     1.00      81%     0.08     0.00     0.00     0.30      9.5     0.04      88%    59.4%
+    parity   |    37.3%    74.5%    20.0%    28.3%       6%      131     2.9%     1.00      81%     0.08     0.00     0.00     0.30      9.5     0.10      88%    42.7%
+
+============================================================
+  FOMO = 0.3
+============================================================
+  DAICO:
+    Pool remaining:    42263.99
+    Released:          22408.76
+    Release efficiency:28.8%
+    Destroyed by vote: 26%
+    [D1] Gini coefficient:  0.477
+    [D1] Top 10% share:     37.7%
+    [D2] Whale dominance:   38.6%
+    [D3] Capital retention: 33.9%
+    [D3] ROI variance:      0.0000
+  RDA:
+    Total raised:      101827.43
+    Tokens sold:       18819.20
+    Participants:      20.0
+    [D1] Gini coefficient:  0.445
+    [D1] Top 10% share:     33.4%
+    [D2] Price volatility:  0.0276
+    [D2] Whale dominance:   37.0%
+    [D2] Timing corr:       -0.108
+    [D3] ROI variance:      0.0623
+  [D1]=Allocation Efficiency  [D2]=Manipulation Resistance  [D3]=Incentive Alignment
+  LAF (v6 rule engines, same agents and seeds):
+    rules    |  TeamRcv   RecovQ RecovAll     Quit     Term     TDay    Bal@T       CP   Quorum    PAUSE      INC    R2pre   R2post   PdDays      Sig   WhVote     Left
+    v5       |    38.4%    75.3%    16.4%    23.0%       0%      n/a      n/a     1.00     100%     0.10     0.02     0.00     0.10      5.6     0.04      79%    45.1%
+    current  |    18.0%    88.2%    20.4%    23.7%       2%      133     2.6%     1.00      88%     0.08     0.00     0.00     0.28      8.8     0.02      87%    61.6%
+    parity   |    37.5%    75.2%    18.1%    25.6%       4%      133     2.9%     1.00      88%     0.08     0.00     0.00     0.28      8.8     0.08      87%    44.4%
+
+============================================================
+  FOMO = 0.5
+============================================================
+  DAICO:
+    Pool remaining:    44454.57
+    Released:          22844.05
+    Release efficiency:27.9%
+    Destroyed by vote: 26%
+    [D1] Gini coefficient:  0.477
+    [D1] Top 10% share:     37.9%
+    [D2] Whale dominance:   38.7%
+    [D3] Capital retention: 33.4%
+    [D3] ROI variance:      0.0000
+  RDA:
+    Total raised:      103038.27
+    Tokens sold:       18043.69
+    Participants:      20.0
+    [D1] Gini coefficient:  0.432
+    [D1] Top 10% share:     31.6%
+    [D2] Price volatility:  0.0276
+    [D2] Whale dominance:   35.2%
+    [D2] Timing corr:       -0.123
+    [D3] ROI variance:      0.0678
+  [D1]=Allocation Efficiency  [D2]=Manipulation Resistance  [D3]=Incentive Alignment
+  LAF (v6 rule engines, same agents and seeds):
+    rules    |  TeamRcv   RecovQ RecovAll     Quit     Term     TDay    Bal@T       CP   Quorum    PAUSE      INC    R2pre   R2post   PdDays      Sig   WhVote     Left
+    v5       |    38.4%    74.8%    16.0%    23.0%       0%      n/a      n/a     1.00     100%     0.10     0.02     0.00     0.12      5.6     0.04      77%    45.5%
+    current  |    17.8%    87.9%    20.2%    23.7%       2%      133     2.2%     1.00      88%     0.08     0.00     0.00     0.32      9.9     0.02      85%    62.0%
+    parity   |    37.2%    74.8%    17.3%    24.5%       2%      133     1.7%     1.00      88%     0.08     0.00     0.00     0.32      9.9     0.08      85%    45.5%
+
+============================================================
+  FOMO = 0.7
+============================================================
+  DAICO:
+    Pool remaining:    44396.79
+    Released:          25448.71
+    Release efficiency:32.8%
+    Destroyed by vote: 16%
+    [D1] Gini coefficient:  0.478
+    [D1] Top 10% share:     38.0%
+    [D2] Whale dominance:   38.9%
+    [D3] Capital retention: 35.9%
+    [D3] ROI variance:      0.0000
+  RDA:
+    Total raised:      104035.11
+    Tokens sold:       17386.27
+    Participants:      20.0
+    [D1] Gini coefficient:  0.425
+    [D1] Top 10% share:     30.7%
+    [D2] Price volatility:  0.0276
+    [D2] Whale dominance:   34.0%
+    [D2] Timing corr:       -0.126
+    [D3] ROI variance:      0.0716
+  [D1]=Allocation Efficiency  [D2]=Manipulation Resistance  [D3]=Incentive Alignment
+  LAF (v6 rule engines, same agents and seeds):
+    rules    |  TeamRcv   RecovQ RecovAll     Quit     Term     TDay    Bal@T       CP   Quorum    PAUSE      INC    R2pre   R2post   PdDays      Sig   WhVote     Left
+    v5       |    38.8%    75.0%    15.5%    22.2%       0%      n/a      n/a     1.00     100%     0.06     0.02     0.00     0.12      4.5     0.06      76%    45.7%
+    current  |    18.1%    88.1%    18.3%    22.2%       2%      133     2.2%     1.00      88%     0.08     0.00     0.00     0.22      7.6     0.02      85%    63.6%
+    parity   |    37.8%    75.1%    15.6%    22.7%       2%      133     1.8%     1.00      88%     0.08     0.00     0.00     0.22      7.6     0.06      85%    46.6%
+
+============================================================
+  FOMO=0.5 + Herding=0.3
+============================================================
+  DAICO:
+    Pool remaining:    41395.51
+    Released:          27184.86
+    Release efficiency:37.7%
+    Destroyed by vote: 12%
+    [D1] Gini coefficient:  0.476
+    [D1] Top 10% share:     37.7%
+    [D2] Whale dominance:   38.5%
+    [D3] Capital retention: 39.5%
+    [D3] ROI variance:      0.0000
+  RDA:
+    Total raised:      103432.15
+    Tokens sold:       17954.53
+    Participants:      20.0
+    [D1] Gini coefficient:  0.432
+    [D1] Top 10% share:     31.6%
+    [D2] Price volatility:  0.0276
+    [D2] Whale dominance:   35.1%
+    [D2] Timing corr:       -0.129
+    [D3] ROI variance:      0.0688
+  [D1]=Allocation Efficiency  [D2]=Manipulation Resistance  [D3]=Incentive Alignment
+  LAF (v6 rule engines, same agents and seeds):
+    rules    |  TeamRcv   RecovQ RecovAll     Quit     Term     TDay    Bal@T       CP   Quorum    PAUSE      INC    R2pre   R2post   PdDays      Sig   WhVote     Left
+    v5       |    38.4%    76.1%    15.7%    26.3%       2%      140     0.0%     1.00     100%     0.12     0.08     0.00     0.12      6.2     0.02      62%    45.9%
+    current  |    17.7%    88.1%    20.0%    27.5%       2%      140     0.0%     1.00      96%     0.12     0.00     0.02     0.26     11.1     0.04      77%    62.4%
+    parity   |    36.8%    75.2%    16.9%    27.7%       4%      140     3.1%     1.00      96%     0.12     0.00     0.02     0.26     11.1     0.04      77%    46.2%
+
+============================================================
+  FOMO=0.5 + Herding=0.6
+============================================================
+  DAICO:
+    Pool remaining:    39081.06
+    Released:          30766.25
+    Release efficiency:41.6%
+    Destroyed by vote: 14%
+    [D1] Gini coefficient:  0.475
+    [D1] Top 10% share:     37.6%
+    [D2] Whale dominance:   38.3%
+    [D3] Capital retention: 44.4%
+    [D3] ROI variance:      0.0000
+  RDA:
+    Total raised:      103241.20
+    Tokens sold:       17923.24
+    Participants:      20.0
+    [D1] Gini coefficient:  0.433
+    [D1] Top 10% share:     31.5%
+    [D2] Price volatility:  0.0276
+    [D2] Whale dominance:   35.0%
+    [D2] Timing corr:       -0.133
+    [D3] ROI variance:      0.0688
+  [D1]=Allocation Efficiency  [D2]=Manipulation Resistance  [D3]=Incentive Alignment
+  LAF (v6 rule engines, same agents and seeds):
+    rules    |  TeamRcv   RecovQ RecovAll     Quit     Term     TDay    Bal@T       CP   Quorum    PAUSE      INC    R2pre   R2post   PdDays      Sig   WhVote     Left
+    v5       |    37.8%    75.8%    19.8%    32.9%       8%      119     0.6%     1.00     100%     0.12     0.08     0.00     0.18      8.3     0.08      61%    42.5%
+    current  |    17.2%    88.3%    22.2%    31.5%       2%      140     0.0%     1.00     100%     0.12     0.00     0.08     0.28     14.3     0.02      76%    60.6%
+    parity   |    35.9%    75.6%    19.4%    32.2%       4%      140     0.6%     1.00     100%     0.12     0.00     0.08     0.28     14.3     0.04      76%    44.7%
+
+============================================================
+  High FOMO=0.7 + Herding=0.5
+============================================================
+  DAICO:
+    Pool remaining:    41390.48
+    Released:          30544.35
+    Release efficiency:38.3%
+    Destroyed by vote: 18%
+    [D1] Gini coefficient:  0.477
+    [D1] Top 10% share:     37.8%
+    [D2] Whale dominance:   38.6%
+    [D3] Capital retention: 42.6%
+    [D3] ROI variance:      0.0000
+  RDA:
+    Total raised:      103910.08
+    Tokens sold:       17391.38
+    Participants:      20.0
+    [D1] Gini coefficient:  0.424
+    [D1] Top 10% share:     30.5%
+    [D2] Price volatility:  0.0276
+    [D2] Whale dominance:   33.8%
+    [D2] Timing corr:       -0.146
+    [D3] ROI variance:      0.0723
+  [D1]=Allocation Efficiency  [D2]=Manipulation Resistance  [D3]=Incentive Alignment
+  LAF (v6 rule engines, same agents and seeds):
+    rules    |  TeamRcv   RecovQ RecovAll     Quit     Term     TDay    Bal@T       CP   Quorum    PAUSE      INC    R2pre   R2post   PdDays      Sig   WhVote     Left
+    v5       |    39.1%    76.1%    17.4%    30.6%       4%      133     0.5%     1.00     100%     0.06     0.08     0.00     0.12      3.9     0.06      58%    43.5%
+    current  |    17.8%    88.3%    21.2%    30.9%       4%      133     0.5%     1.00      95%     0.08     0.00     0.06     0.26     10.4     0.04      74%    61.0%
+    parity   |    37.0%    75.7%    18.2%    31.3%       4%      133     0.4%     1.00      95%     0.08     0.00     0.06     0.26     10.5     0.04      74%    44.8%
+
+  Summary (small): TeamRcv / RecovQ / Term / Quorum / Rule-2 pauses / Left, per ruleset
+  Scenario                         |                  v5                   |                current                |                parity                
+  Baseline (no behavioral effects) |  38.0%  74.7%   2% 100%  0.14  43.2%  |  17.9%  87.8%   4%  81%  0.30  59.4%  |  37.3%  74.5%   6%  81%  0.30  42.7% 
+  FOMO = 0.3                       |  38.4%  75.3%   0% 100%  0.10  45.1%  |  18.0%  88.2%   2%  88%  0.28  61.6%  |  37.5%  75.2%   4%  88%  0.28  44.4% 
+  FOMO = 0.5                       |  38.4%  74.8%   0% 100%  0.12  45.5%  |  17.8%  87.9%   2%  88%  0.32  62.0%  |  37.2%  74.8%   2%  88%  0.32  45.5% 
+  FOMO = 0.7                       |  38.8%  75.0%   0% 100%  0.12  45.7%  |  18.1%  88.1%   2%  88%  0.22  63.6%  |  37.8%  75.1%   2%  88%  0.22  46.6% 
+  FOMO=0.5 + Herding=0.3           |  38.4%  76.1%   2% 100%  0.12  45.9%  |  17.7%  88.1%   2%  96%  0.28  62.4%  |  36.8%  75.2%   4%  96%  0.28  46.2% 
+  FOMO=0.5 + Herding=0.6           |  37.8%  75.8%   8% 100%  0.18  42.5%  |  17.2%  88.3%   2% 100%  0.36  60.6%  |  35.9%  75.6%   4% 100%  0.36  44.7% 
+  High FOMO=0.7 + Herding=0.5      |  39.1%  76.1%   4% 100%  0.12  43.5%  |  17.8%  88.3%   4%  95%  0.32  61.0%  |  37.0%  75.7%   4%  95%  0.32  44.8% 
+
+############################################################
+# large_project profile (Casper/Mina/Flow/Algorand-scale, calibrated)
+############################################################
+
+============================================================
+  Baseline (no behavioral effects)
+============================================================
+  DAICO:
+    Pool remaining:    150359.53
+    Released:          135529.30
+    Release efficiency:47.4%
+    Destroyed by vote: 0%
+    [D1] Gini coefficient:  0.519
+    [D1] Top 10% share:     42.9%
+    [D2] Whale dominance:   43.7%
+    [D3] Capital retention: 47.4%
+    [D3] ROI variance:      0.0000
+  RDA:
+    Total raised:      474438.64
+    Tokens sold:       89730.96
+    Participants:      271.8
+    [D1] Gini coefficient:  0.564
+    [D1] Top 10% share:     42.9%
+    [D2] Price volatility:  0.0074
+    [D2] Whale dominance:   43.1%
+    [D2] Timing corr:       0.057
+    [D3] ROI variance:      0.0571
+  [D1]=Allocation Efficiency  [D2]=Manipulation Resistance  [D3]=Incentive Alignment
+  LAF (v6 rule engines, same agents and seeds):
+    rules    |  TeamRcv   RecovQ RecovAll     Quit     Term     TDay    Bal@T       CP   Quorum    PAUSE      INC    R2pre   R2post   PdDays      Sig   WhVote     Left
+    v5       |    49.3%    50.7%    50.7%   100.0%     100%      455     9.4%     3.84     100%     0.00     1.08     0.00     0.78     43.7     0.00      60%     0.0%
+    current  |    50.6%    50.7%    49.1%    96.7%      98%      509     4.5%     4.14      45%     0.02     0.00     0.00     1.42     79.4     0.00      71%     0.3%
+    parity   |    50.6%    50.7%    49.1%    96.7%      98%      509     4.5%     4.14      45%     0.02     0.00     0.00     1.42     79.4     0.00      71%     0.3%
+
+============================================================
+  FOMO = 0.3
+============================================================
+  DAICO:
+    Pool remaining:    160142.98
+    Released:          144347.79
+    Release efficiency:47.4%
+    Destroyed by vote: 0%
+    [D1] Gini coefficient:  0.519
+    [D1] Top 10% share:     43.2%
+    [D2] Whale dominance:   43.9%
+    [D3] Capital retention: 47.4%
+    [D3] ROI variance:      0.0000
+  RDA:
+    Total raised:      512923.53
+    Tokens sold:       80469.52
+    Participants:      340.0
+    [D1] Gini coefficient:  0.442
+    [D1] Top 10% share:     32.2%
+    [D2] Price volatility:  0.0074
+    [D2] Whale dominance:   31.9%
+    [D2] Timing corr:       0.000
+    [D3] ROI variance:      0.0662
+  [D1]=Allocation Efficiency  [D2]=Manipulation Resistance  [D3]=Incentive Alignment
+  LAF (v6 rule engines, same agents and seeds):
+    rules    |  TeamRcv   RecovQ RecovAll     Quit     Term     TDay    Bal@T       CP   Quorum    PAUSE      INC    R2pre   R2post   PdDays      Sig   WhVote     Left
+    v5       |    52.4%    47.6%    47.6%   100.0%     100%      463     9.4%     3.98     100%     0.00     1.16     0.00     0.48     26.9     0.00      57%     0.0%
+    current  |    53.6%    48.6%    45.8%    94.3%      90%      515     4.0%     4.24      61%     0.00     0.02     0.00     1.36     72.2     0.00      69%     0.6%
+    parity   |    53.6%    48.6%    45.8%    94.3%      90%      515     4.0%     4.24      61%     0.00     0.02     0.00     1.36     72.2     0.00      69%     0.6%
+
+============================================================
+  FOMO = 0.5
+============================================================
+  DAICO:
+    Pool remaining:    166665.29
+    Released:          150226.79
+    Release efficiency:47.4%
+    Destroyed by vote: 0%
+    [D1] Gini coefficient:  0.520
+    [D1] Top 10% share:     43.4%
+    [D2] Whale dominance:   44.1%
+    [D3] Capital retention: 47.4%
+    [D3] ROI variance:      0.0000
+  RDA:
+    Total raised:      512931.27
+    Tokens sold:       78504.03
+    Participants:      340.0
+    [D1] Gini coefficient:  0.435
+    [D1] Top 10% share:     31.0%
+    [D2] Price volatility:  0.0074
+    [D2] Whale dominance:   30.6%
+    [D2] Timing corr:       0.016
+    [D3] ROI variance:      0.0681
+  [D1]=Allocation Efficiency  [D2]=Manipulation Resistance  [D3]=Incentive Alignment
+  LAF (v6 rule engines, same agents and seeds):
+    rules    |  TeamRcv   RecovQ RecovAll     Quit     Term     TDay    Bal@T       CP   Quorum    PAUSE      INC    R2pre   R2post   PdDays      Sig   WhVote     Left
+    v5       |    54.6%    45.4%    45.4%   100.0%     100%      462     9.5%     3.96     100%     0.00     1.22     0.00     0.22     12.3     0.00      57%     0.0%
+    current  |    55.9%    45.4%    43.8%    96.8%      96%      522     3.9%     4.24      75%     0.00     0.06     0.00     1.20     57.8     0.00      69%     0.3%
+    parity   |    55.9%    45.4%    43.8%    96.8%      96%      522     3.9%     4.24      75%     0.00     0.06     0.00     1.20     57.8     0.00      69%     0.3%
+
+============================================================
+  FOMO = 0.7
+============================================================
+  DAICO:
+    Pool remaining:    172993.61
+    Released:          155930.94
+    Release efficiency:47.4%
+    Destroyed by vote: 0%
+    [D1] Gini coefficient:  0.521
+    [D1] Top 10% share:     43.6%
+    [D2] Whale dominance:   44.3%
+    [D3] Capital retention: 47.4%
+    [D3] ROI variance:      0.0000
+  RDA:
+    Total raised:      512932.24
+    Tokens sold:       77715.74
+    Participants:      340.0
+    [D1] Gini coefficient:  0.432
+    [D1] Top 10% share:     30.6%
+    [D2] Price volatility:  0.0074
+    [D2] Whale dominance:   30.1%
+    [D2] Timing corr:       0.024
+    [D3] ROI variance:      0.0689
+  [D1]=Allocation Efficiency  [D2]=Manipulation Resistance  [D3]=Incentive Alignment
+  LAF (v6 rule engines, same agents and seeds):
+    rules    |  TeamRcv   RecovQ RecovAll     Quit     Term     TDay    Bal@T       CP   Quorum    PAUSE      INC    R2pre   R2post   PdDays      Sig   WhVote     Left
+    v5       |    57.8%    42.2%    42.2%   100.0%     100%      477     9.4%     4.00     100%     0.00     1.28     0.00     0.04      2.2     0.00      56%     0.0%
+    current  |    59.3%    46.6%    39.5%    87.4%      80%      534     3.5%     4.62      90%     0.00     0.10     0.00     1.04     37.7     0.00      70%     1.2%
+    parity   |    59.3%    46.6%    39.5%    87.4%      80%      534     3.5%     4.62      90%     0.00     0.10     0.00     1.04     37.7     0.00      70%     1.2%
+
+============================================================
+  FOMO=0.5 + Herding=0.3
+============================================================
+  DAICO:
+    Pool remaining:    170148.78
+    Released:          153366.70
+    Release efficiency:47.4%
+    Destroyed by vote: 0%
+    [D1] Gini coefficient:  0.519
+    [D1] Top 10% share:     43.1%
+    [D2] Whale dominance:   43.8%
+    [D3] Capital retention: 47.4%
+    [D3] ROI variance:      0.0000
+  RDA:
+    Total raised:      512925.24
+    Tokens sold:       78451.45
+    Participants:      340.0
+    [D1] Gini coefficient:  0.435
+    [D1] Top 10% share:     31.0%
+    [D2] Price volatility:  0.0074
+    [D2] Whale dominance:   30.6%
+    [D2] Timing corr:       0.016
+    [D3] ROI variance:      0.0683
+  [D1]=Allocation Efficiency  [D2]=Manipulation Resistance  [D3]=Incentive Alignment
+  LAF (v6 rule engines, same agents and seeds):
+    rules    |  TeamRcv   RecovQ RecovAll     Quit     Term     TDay    Bal@T       CP   Quorum    PAUSE      INC    R2pre   R2post   PdDays      Sig   WhVote     Left
+    v5       |    49.8%    50.2%    50.2%   100.0%     100%      456     9.4%     3.98     100%     0.00     0.76     0.00     0.60     33.6     0.00      46%     0.0%
+    current  |    52.3%    48.0%    47.6%    99.3%      98%      503     4.1%     4.16      99%     0.00     0.18     0.00     1.52     79.4     0.00      64%     0.1%
+    parity   |    52.3%    48.0%    47.6%    99.3%      98%      503     4.1%     4.16      99%     0.00     0.18     0.00     1.52     79.4     0.00      64%     0.1%
+
+============================================================
+  FOMO=0.5 + Herding=0.6
+============================================================
+  DAICO:
+    Pool remaining:    171538.29
+    Released:          158504.90
+    Release efficiency:48.0%
+    Destroyed by vote: 0%
+    [D1] Gini coefficient:  0.518
+    [D1] Top 10% share:     42.8%
+    [D2] Whale dominance:   43.5%
+    [D3] Capital retention: 48.0%
+    [D3] ROI variance:      0.0000
+  RDA:
+    Total raised:      512929.39
+    Tokens sold:       78478.65
+    Participants:      340.0
+    [D1] Gini coefficient:  0.436
+    [D1] Top 10% share:     31.0%
+    [D2] Price volatility:  0.0074
+    [D2] Whale dominance:   30.6%
+    [D2] Timing corr:       0.016
+    [D3] ROI variance:      0.0683
+  [D1]=Allocation Efficiency  [D2]=Manipulation Resistance  [D3]=Incentive Alignment
+  LAF (v6 rule engines, same agents and seeds):
+    rules    |  TeamRcv   RecovQ RecovAll     Quit     Term     TDay    Bal@T       CP   Quorum    PAUSE      INC    R2pre   R2post   PdDays      Sig   WhVote     Left
+    v5       |    49.2%    50.8%    50.8%   100.0%     100%      453     9.5%     3.84     100%     0.00     0.82     0.00     0.66     37.0     0.00      50%     0.0%
+    current  |    50.5%    50.9%    49.0%    97.2%      94%      506     4.3%     4.18      99%     0.00     0.12     0.00     1.64     88.9     0.00      66%     0.4%
+    parity   |    50.5%    50.9%    49.0%    97.2%      94%      506     4.3%     4.18      99%     0.00     0.12     0.00     1.64     88.9     0.00      66%     0.4%
+
+============================================================
+  High FOMO=0.7 + Herding=0.5
+============================================================
+  DAICO:
+    Pool remaining:    176922.53
+    Released:          162784.01
+    Release efficiency:47.9%
+    Destroyed by vote: 0%
+    [D1] Gini coefficient:  0.520
+    [D1] Top 10% share:     43.2%
+    [D2] Whale dominance:   43.8%
+    [D3] Capital retention: 47.9%
+    [D3] ROI variance:      0.0000
+  RDA:
+    Total raised:      512934.42
+    Tokens sold:       77707.34
+    Participants:      340.0
+    [D1] Gini coefficient:  0.432
+    [D1] Top 10% share:     30.5%
+    [D2] Price volatility:  0.0074
+    [D2] Whale dominance:   30.1%
+    [D2] Timing corr:       0.025
+    [D3] ROI variance:      0.0690
+  [D1]=Allocation Efficiency  [D2]=Manipulation Resistance  [D3]=Incentive Alignment
+  LAF (v6 rule engines, same agents and seeds):
+    rules    |  TeamRcv   RecovQ RecovAll     Quit     Term     TDay    Bal@T       CP   Quorum    PAUSE      INC    R2pre   R2post   PdDays      Sig   WhVote     Left
+    v5       |    51.1%    48.9%    48.9%   100.0%     100%      460     9.6%     3.98     100%     0.00     0.80     0.00     0.48     26.9     0.00      48%     0.0%
+    current  |    53.6%    48.0%    46.0%    97.1%      92%      517     4.0%     4.28      98%     0.00     0.12     0.00     1.42     73.9     0.00      65%     0.4%
+    parity   |    53.6%    48.0%    46.0%    97.1%      92%      517     4.0%     4.28      98%     0.00     0.12     0.00     1.42     73.9     0.00      65%     0.4%
+
+  Summary (large): TeamRcv / RecovQ / Term / Quorum / Rule-2 pauses / Left, per ruleset
+  Scenario                         |                  v5                   |                current                |                parity                
+  Baseline (no behavioral effects) |  49.3%  50.7% 100% 100%  0.78   0.0%  |  50.6%  50.7%  98%  45%  1.42   0.3%  |  50.6%  50.7%  98%  45%  1.42   0.3% 
+  FOMO = 0.3                       |  52.4%  47.6% 100% 100%  0.48   0.0%  |  53.6%  48.6%  90%  61%  1.36   0.6%  |  53.6%  48.6%  90%  61%  1.36   0.6% 
+  FOMO = 0.5                       |  54.6%  45.4% 100% 100%  0.22   0.0%  |  55.9%  45.4%  96%  75%  1.20   0.3%  |  55.9%  45.4%  96%  75%  1.20   0.3% 
+  FOMO = 0.7                       |  57.8%  42.2% 100% 100%  0.04   0.0%  |  59.3%  46.6%  80%  90%  1.04   1.2%  |  59.3%  46.6%  80%  90%  1.04   1.2% 
+  FOMO=0.5 + Herding=0.3           |  49.8%  50.2% 100% 100%  0.60   0.0%  |  52.3%  48.0%  98%  99%  1.52   0.1%  |  52.3%  48.0%  98%  99%  1.52   0.1% 
+  FOMO=0.5 + Herding=0.6           |  49.2%  50.8% 100% 100%  0.66   0.0%  |  50.5%  50.9%  94%  99%  1.64   0.4%  |  50.5%  50.9%  94%  99%  1.64   0.4% 
+  High FOMO=0.7 + Herding=0.5      |  51.1%  48.9% 100% 100%  0.48   0.0%  |  53.6%  48.0%  92%  98%  1.42   0.4%  |  53.6%  48.0%  92%  98%  1.42   0.4% 
+
+Parity: ruleset 'v5' through LAFSimV6 reproduced all 47 metrics of v5.run_single (DAICO, RDA, LAF) exactly in 1050 runs (21 cells x 50 seeds).
+
+====================================================================================================
+  Headline: baseline scenario, N=200 (seeds 0-199), v5 vs current vs parity
+====================================================================================================
+    profile/rules   |  TeamRcv   RecovQ RecovAll     Quit     Term     TDay    Bal@T       CP   Quorum    PAUSE      INC    R2pre   R2post   PdDays      Sig   WhVote     Left
+    v3/v5           |    44.7%    73.2%    33.9%    45.8%      12%      305     7.5%     2.98     100%     0.45     0.24     0.00     0.58     38.7     0.07      72%    21.4%
+    v3/current      |    41.2%    74.7%    36.5%    45.8%      10%      256     4.4%     2.96      76%     0.36     0.01     0.01     0.69     40.8     0.08      82%    22.3%
+    v3/parity       |    42.9%    73.6%    36.0%    45.8%      10%      255     4.3%     2.96      76%     0.36     0.01     0.01     0.69     40.8     0.08      82%    21.1%
+    small/v5        |    37.9%    76.2%    17.0%    24.4%       2%      131     2.5%     1.00     100%     0.14     0.03     0.00     0.14      7.7     0.05      79%    45.2%
+    small/current   |    17.7%    88.5%    21.8%    24.9%       3%      132     3.0%     1.00      73%     0.09     0.01     0.01     0.28     10.6     0.04      86%    60.5%
+    small/parity    |    37.0%    76.0%    18.8%    25.8%       4%      132     2.6%     1.00      73%     0.09     0.01     0.01     0.28     10.7     0.06      86%    44.3%
+    large/v5        |    49.9%    50.1%    50.1%   100.0%     100%      456     9.4%     3.88     100%     0.00     1.11     0.00     0.73     40.9     0.00      58%     0.0%
+    large/current   |    51.3%    49.7%    48.4%    97.1%      97%      510     4.4%     4.16      40%     0.01     0.00     0.00     1.36     74.1     0.00      70%     0.3%
+    large/parity    |    51.3%    49.7%    48.4%    97.1%      97%      510     4.4%     4.16      40%     0.01     0.00     0.00     1.36     74.1     0.00      70%     0.3%
+
+  Terminal day (terminal runs only, nearest-rank percentiles), balance at terminal, pause causes:
+    v3    v5      terminal  12% (n= 23)  day mean  305 p10  238 p50  336 p90  350  bal@T   7.5%  pauses/run: R2 pre 0.00 post 0.58 vote 0.44 (no-op 0.00)  paused days R2 28.5 vote 10.2  init rate 1.000%
+    v3    current terminal  10% (n= 21)  day mean  256 p10  133 p50  245 p90  350  bal@T   4.4%  pauses/run: R2 pre 0.01 post 0.69 vote 0.36 (no-op 0.00)  paused days R2 32.2 vote 8.6  init rate 0.959%
+    v3    parity  terminal  10% (n= 21)  day mean  255 p10  133 p50  245 p90  350  bal@T   4.3%  pauses/run: R2 pre 0.01 post 0.69 vote 0.36 (no-op 0.00)  paused days R2 32.2 vote 8.6  init rate 1.000%
+    small v5      terminal   2% (n=  3)  day mean  131 p10  126 p50  133 p90  133  bal@T   2.5%  pauses/run: R2 pre 0.00 post 0.14 vote 0.14 (no-op 0.00)  paused days R2 3.6 vote 4.1  init rate 2.000%
+    small current terminal   3% (n=  6)  day mean  132 p10  126 p50  133 p90  133  bal@T   3.0%  pauses/run: R2 pre 0.01 post 0.28 vote 0.09 (no-op 0.00)  paused days R2 8.2 vote 2.4  init rate 0.959%
+    small parity  terminal   4% (n=  7)  day mean  132 p10  126 p50  133 p90  133  bal@T   2.6%  pauses/run: R2 pre 0.01 post 0.28 vote 0.09 (no-op 0.00)  paused days R2 8.3 vote 2.4  init rate 2.000%
+    large v5      terminal 100% (n=200)  day mean  456 p10  427 p50  455 p90  483  bal@T   9.4%  pauses/run: R2 pre 0.00 post 0.73 vote 0.00 (no-op 0.00)  paused days R2 40.9 vote 0.0  init rate 0.800%
+    large current terminal  97% (n=194)  day mean  510 p10  476 p50  511 p90  546  bal@T   4.4%  pauses/run: R2 pre 0.00 post 1.36 vote 0.01 (no-op 0.00)  paused days R2 74.0 vote 0.1  init rate 0.800%
+    large parity  terminal  97% (n=194)  day mean  510 p10  476 p50  511 p90  546  bal@T   4.4%  pauses/run: R2 pre 0.00 post 1.36 vote 0.01 (no-op 0.00)  paused days R2 74.0 vote 0.1  init rate 0.800%
+  Parity also holds for the headline runs (600 more v5 runs, seeds 0-199).
+
+====================================================================================================
+  S1 honest team + exogenous bank run (A4 off), N=50: non-whale holders exit w.p. q in one round
+====================================================================================================
+    profile panic        rules    | FalsePause R2pause  PdDays  TeamRcv  NoPanic   Lost  RecovQ   Quit  Term   Left
+    v3     day35_q0.3   v5       |         2%      2%     1.1    48.9%    50.0%   1.1%   94.9%  28.7%    2%  32.5%
+    v3     day35_q0.3   current  |        34%     34%    19.0    44.6%    47.9%   3.3%   95.2%  28.2%    2%  36.9%
+    v3     day35_q0.3   parity   |        34%     34%    19.0    46.5%    50.0%   3.5%   95.0%  28.2%    2%  35.1%
+    v3     day35_q0.5   v5       |        22%     22%    12.3    40.2%    50.0%   9.8%   90.4%  61.5%   28%  18.2%
+    v3     day35_q0.5   current  |        84%     84%    47.0    32.4%    47.9%  15.6%   94.8%  57.2%   16%  27.0%
+    v3     day35_q0.5   parity   |        84%     84%    47.0    33.7%    50.0%  16.3%   94.6%  57.2%   16%  25.7%
+    v3     day126_q0.3  v5       |        12%     12%     6.7    48.9%    50.0%   1.1%   81.7%  28.2%    2%  35.6%
+    v3     day126_q0.3  current  |        34%     34%    19.0    45.1%    47.9%   2.8%   82.7%  27.6%    0%  39.4%
+    v3     day126_q0.3  parity   |        34%     34%    19.0    47.0%    50.0%   3.0%   82.0%  27.6%    0%  37.6%
+    v3     day126_q0.5  v5       |        62%     62%    34.7    39.9%    50.0%  10.1%   81.7%  57.9%   16%  24.7%
+    v3     day126_q0.5  current  |        84%     84%    47.0    35.5%    47.9%  12.4%   82.7%  57.3%   14%  29.0%
+    v3     day126_q0.5  parity   |        84%     84%    47.0    37.0%    50.0%  13.0%   82.0%  57.3%   14%  27.8%
+    small  day35_q0.3   v5       |        10%     10%     5.6    37.5%    40.0%   2.5%   89.3%  34.2%   10%  40.4%
+    small  day35_q0.3   current  |        40%     40%    22.4    15.7%    19.2%   3.5%   95.2%  30.6%    6%  63.3%
+    small  day35_q0.3   parity   |        40%     40%    22.4    32.8%    40.0%   7.2%   90.0%  30.6%    6%  47.4%
+    small  day35_q0.5   v5       |        48%     48%    26.9    27.7%    40.0%  12.3%   88.1%  68.3%   40%  22.2%
+    small  day35_q0.5   current  |        74%     74%    41.4    10.7%    19.2%   8.4%   95.2%  65.3%   34%  37.2%
+    small  day35_q0.5   parity   |        74%     74%    41.4    22.4%    40.0%  17.6%   89.9%  66.1%   36%  27.7%
+    small  day126_q0.3  v5       |        22%     22%     3.1    39.1%    40.0%   0.9%   64.0%  30.4%    4%  47.1%
+    small  day126_q0.3  current  |        40%     40%     5.6    18.4%    19.2%   0.8%   82.7%  30.1%    4%  64.0%
+    small  day126_q0.3  parity   |        40%     40%     5.6    38.4%    40.0%   1.6%   64.0%  30.4%    4%  47.8%
+    small  day126_q0.5  v5       |        60%     60%     7.1    38.0%    40.0%   2.0%   63.8%  60.3%   16%  32.8%
+    small  day126_q0.5  current  |        74%     74%    10.2    17.8%    19.2%   1.4%   82.7%  59.5%   14%  45.1%
+    small  day126_q0.5  parity   |        74%     74%    10.2    37.1%    40.0%   2.9%   64.0%  60.3%   16%  33.6%
+    large  day35_q0.3   v5       |         0%      0%     0.0    64.0%    64.0%   0.0%   96.0%  27.0%    0%  20.0%
+    large  day35_q0.3   current  |         4%      4%     2.2    63.7%    64.0%   0.3%   96.0%  27.0%    0%  20.2%
+    large  day35_q0.3   parity   |         4%      4%     2.2    63.7%    64.0%   0.3%   96.0%  27.0%    0%  20.2%
+    large  day35_q0.5   v5       |         0%      0%     0.0    61.9%    64.0%   2.1%   63.3%  75.9%   58%   4.9%
+    large  day35_q0.5   current  |       100%    100%    56.0    56.5%    64.0%   7.5%   96.0%  45.8%    0%  15.9%
+    large  day35_q0.5   parity   |       100%    100%    56.0    56.5%    64.0%   7.5%   96.0%  45.8%    0%  15.9%
+    large  day126_q0.3  v5       |         0%      0%     0.0    64.0%    64.0%   0.0%   85.6%  27.0%    0%  21.7%
+    large  day126_q0.3  current  |         4%      4%     2.2    63.7%    64.0%   0.3%   85.6%  27.0%    0%  22.0%
+    large  day126_q0.3  parity   |         4%      4%     2.2    63.7%    64.0%   0.3%   85.6%  27.0%    0%  22.0%
+    large  day126_q0.5  v5       |        74%     74%    41.4    58.7%    64.0%   5.3%   85.1%  46.3%    2%  16.5%
+    large  day126_q0.5  current  |       100%    100%    56.0    56.7%    64.0%   7.3%   85.6%  45.8%    0%  18.7%
+    large  day126_q0.5  parity   |       100%    100%    56.0    56.7%    64.0%   7.3%   85.6%  45.8%    0%  18.7%
+
+====================================================================================================
+  S2 malicious team at the maximum permitted rate (no delivery from day 0), N=50
+====================================================================================================
+    profile variant                     rules    | Onset Detect DetDay   Lag ProtLag 1stProtect             StrmB4P PreOns PostOns TeamRcv RecovQ RecAll   Quit  Term   Left
+    v3     a_signals_only              v5       |     0   100%     86    86      98 decrease 42/50           13.5%   0.0%   15.3%   15.3%  84.7%  84.7% 100.0%  100%   0.0%
+    v3     a_signals_only              current  |     0   100%     88    88      66 rule2_pause 50/50         9.1%   0.0%    9.4%    9.4%  90.6%  90.6% 100.0%  100%   0.0%
+    v3     b_confidence_tracks_health  v5       |     0   100%     90    90     100 decrease 32/50           13.7%   0.0%   15.0%   15.0%  85.0%  85.0% 100.0%  100%   0.0%
+    v3     b_confidence_tracks_health  current  |     0   100%     94    94      65 rule2_pause 50/50         8.9%   0.0%    9.4%    9.4%  90.6%  90.6% 100.0%  100%   0.0%
+    small  a_signals_only              v5       |     0   100%     85    85      97 decrease 37/50           13.2%   0.0%   14.9%   14.9%  85.2%  85.0%  99.8%  100%   0.2%
+    small  a_signals_only              current  |     0   100%     87    87      68 rule2_pause 48/50         9.3%   0.0%    9.6%    9.6%  90.4%  90.0%  99.5%   98%   0.3%
+    small  b_confidence_tracks_health  v5       |     0   100%     88    88      98 decrease 32/50           13.4%   0.0%   14.8%   14.8%  85.3%  85.1%  99.7%  100%   0.2%
+    small  b_confidence_tracks_health  current  |     0   100%     88    88      68 rule2_pause 48/50         9.3%   0.0%    9.7%    9.7%  90.3%  89.9%  99.5%  100%   0.3%
+    large  a_signals_only              v5       |     0   100%     85    85     104 decrease 50/50           14.2%   0.0%   16.3%   16.3%  83.7%  83.7% 100.0%  100%   0.0%
+    large  a_signals_only              current  |     0   100%     91    91      64 rule2_pause 50/50         8.7%   0.0%    9.2%    9.2%  90.8%  90.8% 100.0%  100%   0.0%
+    large  b_confidence_tracks_health  v5       |     0   100%     95    95     106 decrease 50/50           14.5%   0.0%   16.4%   16.4%  83.6%  83.6% 100.0%  100%   0.0%
+    large  b_confidence_tracks_health  current  |     0   100%    103   103      63 rule2_pause 50/50         8.6%   0.0%    9.1%    9.1%  90.9%  90.9% 100.0%  100%   0.0%
+
+====================================================================================================
+  S3 gradual deterioration (onset U(60,240) d, health to 0 over 180 d), N=50
+====================================================================================================
+    profile variant                     rules    | Onset Detect DetDay   Lag ProtLag 1stProtect             StrmB4P PreOns PostOns TeamRcv RecovQ RecAll   Quit  Term   Left
+    v3     a_signals_only              v5       |   163    22%    330   236     227 none 37/50               32.7%  22.9%   26.2%   49.1%  53.4%   7.5%  16.7%    0%  43.5%
+    v3     a_signals_only              current  |   163    22%    330   236     223 none 35/50               30.9%  22.0%   24.9%   46.9%  55.4%   7.8%  16.7%    0%  45.4%
+    v3     a_signals_only              parity   |   163    22%    330   236     223 none 35/50               32.3%  22.9%   26.0%   48.9%  53.5%   7.5%  16.7%    0%  43.6%
+    v3     b_confidence_tracks_health  v5       |   163    20%    332   230     196 none 29/50               28.4%  22.9%   25.6%   48.5%  55.9%  16.8%  30.3%    4%  34.7%
+    v3     b_confidence_tracks_health  current  |   163    20%    333   230     189 none 25/50               26.2%  22.0%   24.3%   46.2%  57.9%  17.4%  30.2%    6%  36.3%
+    v3     b_confidence_tracks_health  parity   |   163    20%    333   230     189 none 25/50               27.4%  22.9%   25.3%   48.2%  56.1%  16.9%  30.2%    6%  34.9%
+    small  a_signals_only              v5       |   163     0%    n/a   n/a     n/a none 50/50                 n/a  28.8%   11.2%   40.0%    n/a   0.0%   0.0%    0%  60.0%
+    small  a_signals_only              current  |   163     0%    n/a   n/a     n/a none 50/50                 n/a  13.8%    5.4%   19.2%    n/a   0.0%   0.0%    0%  80.8%
+    small  a_signals_only              parity   |   163     0%    n/a   n/a     n/a none 50/50                 n/a  28.8%   11.2%   40.0%    n/a   0.0%   0.0%    0%  60.0%
+    small  b_confidence_tracks_health  v5       |   163     0%    n/a   n/a     n/a none 50/50                 n/a  28.8%   11.2%   40.0%  65.0%   0.2%   0.6%    0%  59.8%
+    small  b_confidence_tracks_health  current  |   163     0%    n/a   n/a     n/a none 50/50                 n/a  13.8%    5.4%   19.2%  83.2%   0.3%   0.6%    0%  80.5%
+    small  b_confidence_tracks_health  parity   |   163     0%    n/a   n/a     n/a none 50/50                 n/a  28.8%   11.2%   40.0%  65.0%   0.2%   0.6%    0%  59.8%
+    large  a_signals_only              v5       |   163   100%    411   248     233 rule2_pause 39/50        26.9%  18.3%   27.1%   45.4%  54.6%  54.6% 100.0%  100%   0.0%
+    large  a_signals_only              current  |   163   100%    414   250     225 rule2_pause 50/50        26.0%  18.3%   26.2%   44.5%  55.5%  55.5% 100.0%  100%   0.0%
+    large  a_signals_only              parity   |   163   100%    414   250     225 rule2_pause 50/50        26.0%  18.3%   26.2%   44.5%  55.5%  55.5% 100.0%  100%   0.0%
+    large  b_confidence_tracks_health  v5       |   163   100%    413   250     225 rule2_pause 50/50        26.1%  18.3%   26.4%   44.7%  55.3%  55.3% 100.0%  100%   0.0%
+    large  b_confidence_tracks_health  current  |   163   100%    414   251     221 rule2_pause 50/50        25.6%  18.3%   25.9%   44.2%  55.8%  55.8% 100.0%  100%   0.0%
+    large  b_confidence_tracks_health  parity   |   163   100%    414   251     221 rule2_pause 50/50        25.6%  18.3%   25.9%   44.2%  55.8%  55.8% 100.0%  100%   0.0%
+
+====================================================================================================
+  S5 whale concentration: team-aligned holder (40 % / 55 %, 1 or 10 wallets) votes INCREASE, N=50
+====================================================================================================
+    profile variant                rules    | AlignCast Quorum INC/run INCwin RateMax TeamRcv OthersRec AlignRec   Quit  Term  TDay WhVote
+    v3     share0.40_wallets1     v5       |       41%   100%    2.12    71%    1.64   58.5%     48.2%    31.5%  40.8%    6%   331    42%
+    v3     share0.40_wallets1     current  |       59%   100%    2.96    99%    2.00   72.2%     33.2%    19.8%  34.9%    2%   343    34%
+    v3     share0.40_wallets1     parity   |       59%   100%    2.96    99%    2.00   75.1%     30.4%    16.6%  37.6%    0%   n/a    34%
+    v3     share0.40_wallets10    v5       |       64%   100%    3.00   100%    1.90   66.2%     38.4%    26.9%  26.9%    4%   350    26%
+    v3     share0.40_wallets10    current  |       59%   100%    2.96    99%    2.00   72.2%     33.2%    19.8%  27.1%    2%   343    34%
+    v3     share0.40_wallets10    parity   |       59%   100%    2.96    99%    2.00   75.1%     30.4%    16.6%  28.7%    0%   n/a    34%
+    v3     share0.55_wallets1     v5       |       49%   100%    2.50    83%    1.75   61.8%     47.6%    30.6%  40.4%    4%   350    37%
+    v3     share0.55_wallets1     current  |       72%   100%    3.00   100%    2.00   72.9%     34.1%    21.5%  32.5%    0%   n/a    23%
+    v3     share0.55_wallets1     parity   |       72%   100%    3.00   100%    2.00   76.0%     31.2%    18.1%  32.5%    0%   n/a    23%
+    v3     share0.55_wallets10    v5       |       71%   100%    3.00   100%    1.90   66.2%     39.9%    28.8%  24.6%    0%   n/a    22%
+    v3     share0.55_wallets10    current  |       72%   100%    3.00   100%    2.00   72.9%     34.1%    21.5%  25.1%    0%   n/a    23%
+    v3     share0.55_wallets10    parity   |       72%   100%    3.00   100%    2.00   76.0%     31.2%    18.1%  25.1%    0%   n/a    23%
+    small  share0.40_wallets1     v5       |       44%   100%    0.64    64%    1.19   41.2%     60.3%    56.5%  23.2%    0%   n/a    39%
+    small  share0.40_wallets1     current  |       61%    94%    0.88    88%    1.44   20.9%     79.8%    78.1%  19.3%    0%   n/a    32%
+    small  share0.40_wallets1     parity   |       61%    94%    0.88    88%    1.44   43.4%     57.9%    54.5%  19.3%    0%   n/a    32%
+    small  share0.40_wallets10    v5       |       70%   100%    1.00   100%    1.30   42.4%     58.9%    55.7%  13.3%    0%   n/a    22%
+    small  share0.40_wallets10    current  |       61%    94%    0.88    88%    1.44   20.9%     79.8%    78.1%  13.5%    0%   n/a    32%
+    small  share0.40_wallets10    parity   |       61%    94%    0.88    88%    1.44   43.4%     57.9%    54.5%  13.5%    0%   n/a    32%
+    small  share0.55_wallets1     v5       |       51%   100%    0.80    80%    1.24   41.7%     60.2%    56.8%  23.1%    0%   n/a    35%
+    small  share0.55_wallets1     current  |       74%   100%    1.00   100%    1.50   21.1%     79.8%    78.2%  19.0%    0%   n/a    22%
+    small  share0.55_wallets1     parity   |       74%   100%    1.00   100%    1.50   44.0%     57.8%    54.5%  19.0%    0%   n/a    22%
+    small  share0.55_wallets10    v5       |       75%   100%    1.00   100%    1.30   42.4%     59.3%    56.2%  13.3%    0%   n/a    18%
+    small  share0.55_wallets10    current  |       74%   100%    1.00   100%    1.50   21.1%     79.8%    78.2%  13.3%    0%   n/a    22%
+    small  share0.55_wallets10    parity   |       74%   100%    1.00   100%    1.50   44.0%     57.8%    54.5%  13.3%    0%   n/a    22%
+    large  share0.40_wallets1     v5       |       18%   100%    2.22    55%    1.65   68.1%     44.4%    13.2% 100.0%  100%   506    50%
+    large  share0.40_wallets1     current  |       60%   100%    4.38    99%    2.00   88.0%     19.4%     0.9%  99.9%  100%   523    34%
+    large  share0.40_wallets1     parity   |       60%   100%    4.38    99%    2.00   88.0%     19.4%     0.9%  99.9%  100%   523    34%
+    large  share0.40_wallets10    v5       |       36%   100%    3.36    84%    2.01   75.1%     33.7%    11.7% 100.0%  100%   479    44%
+    large  share0.40_wallets10    current  |       59%   100%    4.22    99%    2.00   88.0%     19.3%     0.9%  99.6%  100%   523    35%
+    large  share0.40_wallets10    parity   |       59%   100%    4.22    99%    2.00   88.0%     19.3%     0.9%  99.6%  100%   523    35%
+    large  share0.55_wallets1     v5       |       23%   100%    2.68    63%    1.75   74.2%     42.8%    11.9%  98.9%   98%   525    49%
+    large  share0.55_wallets1     current  |       77%   100%    5.24    99%    2.00   91.0%     19.6%     0.3%  99.2%  100%   539    20%
+    large  share0.55_wallets1     parity   |       77%   100%    5.24    99%    2.00   91.0%     19.6%     0.3%  99.2%  100%   539    20%
+    large  share0.55_wallets10    v5       |       40%   100%    4.00   100%    2.20   82.7%     25.4%    10.7% 100.0%  100%   482    44%
+    large  share0.55_wallets10    current  |       74%   100%    4.68    99%    2.00   91.0%     19.5%     0.3%  99.3%  100%   539    22%
+    large  share0.55_wallets10    parity   |       74%   100%    4.68    99%    2.00   91.0%     19.5%     0.3%  99.3%  100%   539    22%
+
+====================================================================================================
+  Sensitivity to v5 assumption A4 (per-round discontent probability x scale), baseline, N=50
+====================================================================================================
+    profile scale rules    | TeamRcv RecovQ   Quit  Term  TDay  Bal@T    R2 Quorum   Left
+    v3      1.00 v5       |   43.4%  74.5%  45.5%    8%   257   5.8%  0.66   100%  22.6%
+    v3      1.00 current  |   40.4%  74.0%  47.7%   10%   213   4.9%  0.74    75%  21.9%
+    v3      0.50 v5       |   47.5%  72.7%  30.9%    2%   343   8.4%  0.42   100%  26.8%
+    v3      0.50 current  |   44.4%  73.7%  29.9%    0%   n/a    n/a  0.54    71%  28.5%
+    v3      0.25 v5       |   50.0%  69.1%  16.8%    0%   n/a    n/a  0.10   100%  37.4%
+    v3      0.25 current  |   46.9%  70.5%  17.3%    2%   245   0.2%  0.22    62%  38.5%
+    v3      0.00 v5       |   50.0%    n/a   0.0%    0%   n/a    n/a  0.00    n/a  50.0%
+    v3      0.00 current  |   47.9%    n/a   0.0%    0%   n/a    n/a  0.00    n/a  52.1%
+    small   1.00 v5       |   38.0%  74.7%  26.7%    2%   126   3.2%  0.14   100%  43.2%
+    small   1.00 current  |   17.9%  87.8%  26.4%    4%   130   3.2%  0.30    81%  59.4%
+    small   0.50 v5       |   38.8%  77.1%  15.9%    0%   n/a    n/a  0.06   100%  50.1%
+    small   0.50 current  |   18.4%  88.8%  14.6%    0%   n/a    n/a  0.20    65%  67.9%
+    small   0.25 v5       |   39.0%  76.9%   8.6%    0%   n/a    n/a  0.04   100%  54.3%
+    small   0.25 current  |   18.8%  89.0%   7.4%    0%   n/a    n/a  0.04    83%  74.2%
+    small   0.00 v5       |   40.0%    n/a   0.0%    0%   n/a    n/a  0.00    n/a  60.0%
+    small   0.00 current  |   19.2%    n/a   0.0%    0%   n/a    n/a  0.00    n/a  80.8%
+    large   1.00 v5       |   49.3%  50.7% 100.0%  100%   455   9.4%  0.78   100%   0.0%
+    large   1.00 current  |   50.6%  50.7%  96.7%   98%   509   4.5%  1.42    45%   0.3%
+    large   0.50 v5       |   60.6%  41.0%  96.1%   98%   524   9.5%  0.00   100%   0.6%
+    large   0.50 current  |   62.8%  55.1%  53.6%   34%   549   3.3%  0.44    48%   5.1%
+    large   0.25 v5       |   64.0%  62.1%  24.2%    2%   560   9.7%  0.00   100%  16.3%
+    large   0.25 current  |   64.0%  62.5%  22.8%    0%   n/a    n/a  0.00    56%  16.4%
+    large   0.00 v5       |   64.0%    n/a   0.0%    0%   n/a    n/a  0.00    n/a  36.0%
+    large   0.00 current  |   64.0%    n/a   0.0%    0%   n/a    n/a  0.00    n/a  36.0%
+
+  S1-S3 keys: FalsePause share of runs with any pause (the team is honest), R2pause with a Rule 2
+  pause; Lost = NoPanic - TeamRcv; Detect share of runs whose monitor fires on or after onset within
+  the horizon; DetDay / Lag first firing day / days after onset; ProtLag days from onset to the first
+  protective event (Rule 2 pause, passed PAUSE / DECREASE / HALT, or terminal); 1stProtect most
+  frequent first event; StrmB4P team funding streamed between onset and that event (runs with one);
+  PreOns / PostOns team funding streamed before / after onset; RecAll payouts / raise. S5 keys:
+  AlignCast aligned share of cast weight; INCwin share of initiated windows resolving INCREASE;
+  RateMax highest live rate / initial rate; OthersRec / AlignRec (payouts + shares at end NAV) /
+  deposits of the non-aligned holders / of the aligned holder; TeamRcv includes the aligned stake.
