@@ -14,10 +14,15 @@ import {SignalMonitor} from "../src/SignalMonitor.sol";
  *         Usage: forge script script/DeployLAF.s.sol --broadcast
  */
 contract DeployLAF is Script {
+    error TeamMustDifferFromAdmin();
+
     function run() external {
         uint256 deployerKey = vm.envUint("PRIVATE_KEY");
         address deployer = vm.addr(deployerKey);
-        address team = vm.envOr("TEAM_ADDRESS", deployer);
+        // Require an explicit team address so the development default cannot
+        // accidentally give one key both admin powers and team withdrawals.
+        address team = vm.envAddress("TEAM_ADDRESS");
+        if (team == deployer) revert TeamMustDifferFromAdmin();
 
         vm.startBroadcast(deployerKey);
 
@@ -31,7 +36,8 @@ contract DeployLAF is Script {
             shareToken,
             2500,               // rageQuitAutoPauseBps: 25%
             1000,               // poolDepletionBps: 10%
-            60 days             // maxPauseDuration
+            60 days,            // maxPauseDuration
+            365 days            // minimumVestingDuration, locked before deposits
         );
 
         // 3. Rage Quit Module (Layer 2)

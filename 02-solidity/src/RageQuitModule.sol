@@ -23,8 +23,10 @@ contract RageQuitModule is IRageQuit, ReentrancyGuard {
     error ZeroShares();
     error InsufficientShares(uint256 requested, uint256 available);
     error ZeroPayout();
+    error ZeroAddress();
 
     constructor(LAFVault _vault, LAFShareToken _shareToken) {
+        if (address(_vault) == address(0) || address(_shareToken) == address(0)) revert ZeroAddress();
         vault = _vault;
         shareToken = _shareToken;
     }

@@ -3,20 +3,45 @@ pragma solidity 0.8.28;
 
 import {LAFTestBase} from "../LAFTestBase.sol";
 import {LAFVault} from "../../src/LAFVault.sol";
+import {LAFShareToken} from "../../src/LAFShareToken.sol";
 
 /**
  * @title LAFVaultTest
  * @notice Unit tests for LAFVault (Layer 1) — §7.1 of laf_solidity_design.md.
  */
 contract LAFVaultTest is LAFTestBase {
+    function test_shareTokenConstructorRejectsZeroAdmin() public {
+        vm.expectRevert(LAFShareToken.ZeroAddress.selector);
+        new LAFShareToken(address(0));
+    }
+
     function test_constructorRevertsWhenRageQuitAutoPauseBpsExceedsMaximum() public {
         vm.expectRevert(abi.encodeWithSelector(LAFVault.InvalidBasisPoints.selector, 10_001));
-        new LAFVault(admin, team, shareToken, 10_001, POOL_DEPLETION_BPS, MAX_PAUSE_DURATION);
+        new LAFVault(admin, team, shareToken, 10_001, POOL_DEPLETION_BPS, MAX_PAUSE_DURATION, MINIMUM_VESTING_DURATION);
     }
 
     function test_constructorRevertsWhenPoolDepletionBpsExceedsMaximum() public {
         vm.expectRevert(abi.encodeWithSelector(LAFVault.InvalidBasisPoints.selector, 10_001));
-        new LAFVault(admin, team, shareToken, RAGE_QUIT_AUTO_PAUSE_BPS, 10_001, MAX_PAUSE_DURATION);
+        new LAFVault(admin, team, shareToken, RAGE_QUIT_AUTO_PAUSE_BPS, 10_001, MAX_PAUSE_DURATION, MINIMUM_VESTING_DURATION);
+    }
+
+    function test_constructorRevertsWhenAnAuthorityOrTokenIsZero() public {
+        vm.expectRevert(LAFVault.ZeroAddress.selector);
+        new LAFVault(address(0), team, shareToken, RAGE_QUIT_AUTO_PAUSE_BPS, POOL_DEPLETION_BPS, MAX_PAUSE_DURATION, MINIMUM_VESTING_DURATION);
+
+        vm.expectRevert(LAFVault.ZeroAddress.selector);
+        new LAFVault(admin, address(0), shareToken, RAGE_QUIT_AUTO_PAUSE_BPS, POOL_DEPLETION_BPS, MAX_PAUSE_DURATION, MINIMUM_VESTING_DURATION);
+
+        vm.expectRevert(LAFVault.ZeroAddress.selector);
+        new LAFVault(admin, team, LAFShareToken(address(0)), RAGE_QUIT_AUTO_PAUSE_BPS, POOL_DEPLETION_BPS, MAX_PAUSE_DURATION, MINIMUM_VESTING_DURATION);
+    }
+
+    function test_constructorRevertsWhenVestingOrPauseDurationIsZero() public {
+        vm.expectRevert(LAFVault.InvalidConfiguration.selector);
+        new LAFVault(admin, team, shareToken, RAGE_QUIT_AUTO_PAUSE_BPS, POOL_DEPLETION_BPS, 0, MINIMUM_VESTING_DURATION);
+
+        vm.expectRevert(LAFVault.InvalidConfiguration.selector);
+        new LAFVault(admin, team, shareToken, RAGE_QUIT_AUTO_PAUSE_BPS, POOL_DEPLETION_BPS, MAX_PAUSE_DURATION, 0);
     }
 
     // ================================================================
@@ -56,6 +81,44 @@ contract LAFVaultTest is LAFTestBase {
         vm.prank(alice);
         vm.expectRevert(LAFVault.ZeroDeposit.selector);
         vault.deposit{value: 0}();
+    }
+
+    function test_closeFunding_revertsWhenNoCapitalWasRaised() public {
+        vm.prank(admin);
+        vm.expectRevert(LAFVault.NoDeposits.selector);
+        vault.closeFunding(RATE_PER_SECOND);
+    }
+
+    function test_closeFunding_revertsWhenRateIsZero() public {
+        vm.prank(alice);
+        vault.deposit{value: 100 ether}();
+
+        vm.prank(admin);
+        vm.expectRevert(LAFVault.InvalidRate.selector);
+        vault.closeFunding(0);
+    }
+
+    function test_closeFunding_rejectsRateAboveTheCommittedVestingLimit() public {
+        vm.prank(alice);
+        vault.deposit{value: 100 ether}();
+
+        uint256 maximumInitialRate = vault.totalDeposited() / (2 * MINIMUM_VESTING_DURATION);
+        vm.prank(admin);
+        vm.expectRevert(abi.encodeWithSelector(
+            LAFVault.RateTooHigh.selector,
+            maximumInitialRate + 1,
+            maximumInitialRate
+        ));
+        vault.closeFunding(maximumInitialRate + 1);
+
+        vm.prank(admin);
+        vault.closeFunding(maximumInitialRate);
+        assertEq(vault.initialRatePerSecond(), maximumInitialRate);
+        assertLe(
+            vault.initialRatePerSecond() * 2 * vault.minimumVestingDuration(),
+            vault.totalDeposited(),
+            "even the 2x governance cap preserves the committed duration"
+        );
     }
 
     // ================================================================

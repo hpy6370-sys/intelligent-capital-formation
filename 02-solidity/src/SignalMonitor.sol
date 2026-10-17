@@ -83,6 +83,7 @@ contract SignalMonitor is ISignalMonitor, AccessControl {
     error TooManyReporters();
     error ReporterAlreadyRegistered(address reporter);
     error ReporterNotRegistered(address reporter);
+    error InvalidCombinatorThreshold(uint256 value);
 
     constructor(
         address admin,
@@ -92,8 +93,15 @@ contract SignalMonitor is ISignalMonitor, AccessControl {
         uint256 _quorum,
         uint256 _reportWindow
     ) {
+        if (admin == address(0) || address(_governor) == address(0)) revert ZeroAddress();
         if (_quorum == 0 || _quorum > MAX_REPORTERS) revert InvalidQuorum();
         if (_reportWindow == 0) revert InvalidWindow();
+        if (_warningCombinatorThreshold == 0 || _warningCombinatorThreshold > NUM_METRICS) {
+            revert InvalidCombinatorThreshold(_warningCombinatorThreshold);
+        }
+        if (_criticalCombinatorThreshold == 0 || _criticalCombinatorThreshold > NUM_METRICS) {
+            revert InvalidCombinatorThreshold(_criticalCombinatorThreshold);
+        }
 
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         governor = _governor;

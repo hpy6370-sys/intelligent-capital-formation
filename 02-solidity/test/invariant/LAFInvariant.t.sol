@@ -51,7 +51,8 @@ contract LAFInvariantTest is Test {
             shareToken,
             2500,       // rageQuitAutoPauseBps: 25%
             1000,       // poolDepletionBps: 10%
-            60 days     // maxPauseDuration
+            60 days,    // maxPauseDuration
+            1 minutes   // minimumVestingDuration
         );
 
         // Deploy rage quit module (Layer 2)

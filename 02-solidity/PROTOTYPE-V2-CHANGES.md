@@ -1,9 +1,9 @@
 # Solidity prototype revision: governance and capital safeguards
 
-This document describes the contracts after the 2026-09-27 revision. The
+This document describes the contracts after the 2026-10-17 hardening. The
 2026-09-08 walkthrough, design proposal, v5 simulation and counterfactual
-estimates describe the earlier mechanism. Their figures are not predictions
-for this revision.
+estimates describe earlier mechanisms. Their figures are not predictions for
+this revision.
 
 ## Checkpoint lifecycle and rate changes
 
@@ -67,6 +67,22 @@ state when the balance reaches zero, or when that unvested amount is positive
 and the balance is below 10 % of it. Normal vesting alone therefore does not
 force terminal when less than 10 % of the initial raise remains. As before,
 terminal sets the stream rate to zero; remaining investors may rage quit.
+
+## Funding-rate bound and constructor validation
+
+The vault now fixes a minimum vesting duration in its constructor, before
+funding begins. At funding close, the admin-selected initial rate cannot exceed
+`totalDeposited / (2 * minimumVestingDuration)`. Since governance can raise the
+rate to at most twice its initial value, it cannot stream the full raise faster
+than the committed duration. This closes the configuration gap where an
+unbounded initial rate could bypass the streaming safeguard. Zero authorities
+or dependencies, empty funding closes, unusable pause settings, and impossible
+signal-combinator thresholds are rejected at deployment or configuration.
+
+The reference deployment fixes a 365-day minimum duration. The deployer/admin
+must supply a distinct team address. The initial rate remains selected when
+funding closes, within the immutable bound; publish that choice with the
+fundraising terms. See `DEPLOYMENT.md` for the command and assumptions.
 
 ## Verification and next research step
 
