@@ -1,19 +1,22 @@
 # LAF Capstone: artefacts and results to date
 
-> **Prototype revision (2026-09-27):** The Solidity contracts now use
-> share-weighted five-action voting, a majority-of-supply quorum, a live 30-day
-> rage-quit alarm, and a vesting-relative terminal threshold. The v5 simulation,
-> stored results, counterfactuals, and original design document describe the
-> earlier mechanism. Their numerical claims have **not** been recalibrated for
-> this revision. See `02-solidity/PROTOTYPE-V2-CHANGES.md` for the exact changes.
+> **Prototype revision (2026-09-27, hardened 2026-10-17):** The Solidity
+> contracts use share-weighted five-action voting, a majority-of-supply quorum,
+> a live 30-day rage-quit alarm, a vesting-relative terminal threshold, a
+> pre-deposit minimum vesting bound and locked module roles. The v5 simulation,
+> counterfactuals and original design document describe the earlier mechanism;
+> `01-simulation/capstone_sim_v6.py` re-runs the same agents under the current
+> rules (see `01-simulation/LAF-SIMULATION-V6-NOTE.md`). The counterfactual
+> estimates have not been recalculated. See `02-solidity/PROTOTYPE-V2-CHANGES.md`
+> for the exact contract changes.
 
-> **Empirical-data status:** `03-dataset/dataset_82_projects.md` is an 82-row
-> working inventory, not yet 82 normalized projects or fundraising campaigns.
-> It includes cross-category overlaps and records such as proposals, governance
-> events, platforms, and aggregates. The failure taxonomy has not been applied
-> to eligible records. Treat the current row counts and summary statistics as
-> descriptive inventory figures pending normalization and coding. See the
-> [failure-coding codebook](03-dataset/FAILURE-CODING-CODEBOOK.md).
+> **Empirical-data status:** all 82 rows of
+> `03-dataset/dataset_82_projects.md` are coded under the
+> [failure-coding codebook](03-dataset/FAILURE-CODING-CODEBOOK.md): record type,
+> duplicates, mechanism fit, outcome at the mid-2026 cutoff and failure mode with
+> dated evidence. 59 rows are eligible fundraising campaigns; 47 were surviving
+> and 12 had failed. The inventory remains a curated list coded by one coder,
+> so its shares are descriptive. Tables: `03-dataset/output/descriptive_tables.md`.
 
 **Project:** Intelligent Capital Formation
 NTU SC6131 MSc Capstone, in collaboration with the Ethereum Foundation. Industry mentor: Shyam Sridhar.
@@ -45,9 +48,9 @@ Inter-layer rules (all in code, defaults in `02-solidity/script/DeployLAF.s.sol`
 
 ## What is in each folder
 
-- `01-simulation/` Monte Carlo simulator. `capstone_sim_v4.py` (v4.2, DAICO vs reverse Dutch auction, calibrated to dataset figures) and `capstone_sim_v5.py` (v5.0, adds LAF on the same agents and scenarios without changing the v4 numbers), `capstone_viz_v4.py` / `capstone_viz_v5.py` (5 figures + PDF each), `sim_v5_sensitivity.py` (sensitivity of the LAF results to assumption A4), `verify_daico_patch.py` (checks the DAICO voting-threshold fix), stored outputs in `output/`, figures in `figures/` (v5 files carry a `_v5` suffix). `LAF-SIMULATION-NOTE.md` explains the LAF modelling assumptions, the three-mechanism results and four design findings for the prototype. Configuration is in-code (`SCENARIOS`, `RealDataCalibration`, `N = 50`); there is no separate config file and no CSV/JSON export, the simulator prints to stdout.
-- `02-solidity/` Foundry project: 5 contracts plus interfaces, a deploy script, and unit, integration, stress and invariant tests. Build artefacts (`out/`, `cache/`) and vendored dependencies (`lib/`) are excluded from the repository; see `VERIFICATION.md` and `DEPLOYMENT.md`. The 8 September log is archival; the 11 October and 17 October dated runs retain their raw output and provenance.
-- `03-dataset/` The source-linked 82-row working inventory (2026-08-31; ICO 18 / RDA 14 / bonding curve 16 / DAICO 11 / LBP 23). It supersedes the May 50-row draft and the August expansion list; the file's changelog records how it was built. It is not yet normalized to unique projects or campaigns, and the six-mode taxonomy has not been applied. `FAILURE-CODING-CODEBOOK.md` proposes record types, evidence rules, and a reproducible coding workflow; its definitions are a protocol, not completed classifications.
+- `01-simulation/` Monte Carlo simulator. `capstone_sim_v4.py` (v4.2, DAICO vs reverse Dutch auction, calibrated to dataset figures) and `capstone_sim_v5.py` (v5.0, adds LAF on the same agents and scenarios without changing the v4 numbers), `capstone_viz_v4.py` / `capstone_viz_v5.py` (5 figures + PDF each), `sim_v5_sensitivity.py` (sensitivity of the LAF results to assumption A4), `verify_daico_patch.py` (checks the DAICO voting-threshold fix), stored outputs in `output/`, figures in `figures/` (v5 files carry a `_v5` suffix). `LAF-SIMULATION-NOTE.md` explains the LAF modelling assumptions, the three-mechanism results and four design findings for the prototype. `capstone_sim_v6.py` (v6.0, 2026-10-17) imports v4/v5 unchanged and re-runs LAF under the current contract rules, with a parity check against v5, 14 rule fixtures and four targeted scenarios; `LAF-SIMULATION-V6-NOTE.md` documents it and `output/simulation_v6_summary.json` holds its headline numbers. Configuration is in-code (`SCENARIOS`, `RealDataCalibration`, `N = 50`); v4/v5 print to stdout only.
+- `02-solidity/` Foundry project: 5 contracts plus interfaces, a deploy script, and unit, integration, stress and invariant tests. Build artefacts (`out/`, `cache/`) and vendored dependencies (`lib/`) are excluded from the repository; see `VERIFICATION.md` and `DEPLOYMENT.md`. The 8 September log is archival; the 11 October and 17 October dated runs retain their raw output and provenance, and `test-output/verification-2026-10-17-role-lock/` is the current record (117 tests, 10 invariants).
+- `03-dataset/` The source-linked 82-row inventory (2026-08-31; ICO 18 / RDA 14 / bonding curve 16 / DAICO 11 / LBP 23) and its coding. `coding/row_codes.csv` holds one coded decision per row (record type, entity, duplicate link, mechanism fit, eligibility, capital raised, outcome, failure mode, evidence, confidence); `coding/research_evidence_2026-10-17.md` lists the dated sources for failed campaigns; `code_inventory.py` validates the codes against `FAILURE-CODING-CODEBOOK.md` and writes `output/dataset_82_coded.csv`, `coding_summary.json` and `descriptive_tables.md`. The source file keeps its original rows, with a header note on known errata.
 - `04-docs/` Original Solidity design document, Proposal v3 (English) and the submitted Journal 1 (PDF). The original design document and walkthrough predate the current voting, funding-rate, Rule 2 and Rule 4 semantics; consult `02-solidity/PROTOTYPE-V2-CHANGES.md` for current behavior and `02-solidity/DEPLOYMENT.md` for deployment assumptions.
 - `05-counterfactuals/` Three files: the counterfactual case analysis (5 cases, 2026-08-31), the 3x3x3 scenario matrix (27 scenarios) and the deep dive on the 9 P0 scenarios. Key figures are summarised below.
 
@@ -62,7 +65,15 @@ python capstone_viz_v4.py                                       # writes figures
 python capstone_sim_v5.py > output/simulation_v5_results.txt   # v5.0, LAF added; ~13 s; DAICO/RDA lines identical to v4
 python capstone_viz_v5.py                                       # five *_v5 figures + capstone_v5_figures.pdf; ~19 s
 python sim_v5_sensitivity.py > output/simulation_v5_sensitivity.txt   # ~7 s
-PYTHONIOENCODING=utf-8 python verify_daico_patch.py             # ~4 min; UTF-8 needed for its console output on Windows
+PYTHONIOENCODING=utf-8 python verify_daico_patch.py             # UTF-8 needed for its console output on Windows
+python capstone_sim_v6.py --json output/simulation_v6_summary.json > output/simulation_v6_results.txt   # ~2 min; deterministic
+```
+
+Dataset coding (Python 3.10+, standard library):
+
+```
+cd 03-dataset
+python code_inventory.py      # validates coding/row_codes.csv, rewrites output/
 ```
 
 Solidity toolchain: all repository-owned Solidity files and `foundry.toml`
@@ -107,6 +118,19 @@ See `02-solidity/VERIFICATION.md` for reproduction and interpretation.
 - Four prototype design findings came out of this run (Rule 4 threshold definition, quorum trivially met by one 40 % whale, Rule 2 snapshot timing, signal layer silent without exogenous deterioration); they are set out in the note and are the first items for the v2 design discussion.
 - The results are most sensitive to assumption A4 (DAICO's 3 % per-round destroy propensity translated into loss of confidence): at scale 0 LAF collapses exactly to the DAICO share distribution (checked), and the large-profile terminal cliff sits between scale 0.25 and 0.5 (`simulation_v5_sensitivity.txt`).
 
+**Coded dataset** (`03-dataset/output/descriptive_tables.md`)
+- 82 rows: 63 campaign rows, 12 platforms, 4 projects without an attributable raise, 1 governance event, 1 proposal, 1 aggregate; two raises appear twice (Aavegotchi, Bancor). 59 rows are eligible campaigns.
+- Outcomes at the mid-2026 cutoff: 47 surviving, 12 failed. Coded failure modes: slow death 3, soft rug 1, regulatory shutdown 1, other documented cause 2, unknown 5. No eligible campaign met the exit-scam, governance-failure or liquidity-trap threshold.
+- Capital raised by eligible campaigns: US$9.85B (median US$17.35M); the ~US$11.0B inventory headline included revenue, volume, pool sizes and duplicates.
+
+**LAF under the current contract rules, v6** (`01-simulation/output/simulation_v6_results.txt`; 200 runs per baseline cell, 50 per scenario cell)
+- Single-whale quorum and stale snapshots are fixed, but quorum is met in only 76 % / 73 % / 40 % of initiated checkpoints (v3 / small / large) and no rate increase passes.
+- The large-profile terminal cliff is delayed, not removed: 97 % of runs end terminal at day 510 on average (v5: 100 % at day 456). The result depends strongly on assumption A4.
+- Malicious team streaming at the maximum permitted rate: its take falls from about 15 % to about 9 % of the raise and holders recover about 90 %.
+- Honest team hit by a panic of half the non-whale holders: Rule 2 now pauses streaming in 74-100 % of runs (v5: 0-62 %), although false terminal states in the large profile disappear.
+- Gradual deterioration is detected before the horizon in only about a fifth of v3 runs and in no small-profile run, under either rule set.
+- Wallet splitting no longer adds voting weight, but a team-aligned 40 % holder can still push the rate to its 2x cap; the minimum-vesting bound is then the binding protection.
+
 **Solidity prototype, 2026-09-08 baseline** (`02-solidity/test-output/forge-test.txt`; see `02-solidity/PROTOTYPE-V2-CHANGES.md` for the current code)
 - Historical 8 September baseline: 83/83 tests passed: `LAFVaultTest` 21 (incl. 1 fuzz), `RageQuitTest` 9, `QuadraticGovernorTest` 17 (added 2026-09-08 from section 7.3 of the design document: window timing, sqrt weighting, quorum and majority, all five resolve actions, Rule 3 rate limit, role checks; one test is renamed to record that a single 40 % holder meets quorum alone, and one is a regression for the unopened-checkpoint fix below), `SignalMonitorTest` 13 (v2 multi-reporter: registration, quorum bounds, median, staleness, flag clearing, role-mutation guards), `CrossLayerTest` 7, `StressTest` 5 (bank run, Sybil checkpoint, signal gaming, cascade, governance apathy), `LAFInvariant` 11 (10 invariants plus a handler sanity test).
 - Fixed on 2026-09-08 while writing the governor tests: `resolveCheckpoint()` did not revert for a checkpoint id that had never been opened, so anyone could call it every 90 days, move `lastCheckpointEnd` forward and defer the scheduled checkpoint indefinitely (signal-triggered checkpoints were unaffected). A `windowStart == 0` guard now reverts with `WindowNotOpen`; `test_resolveCheckpoint_revertsForUnopenedId` pins it.
@@ -126,40 +150,33 @@ See `02-solidity/VERIFICATION.md` for reproduction and interpretation.
 5. **"Boiling frog"**: misuse within the permitted streaming rate is undetectable by any layer.
 6. **Bank-run false positives**: honest teams get paused by Rule 2 in a panic (scenario #7); bounded pause and checkpoint override are the only mitigations.
 7. **Simulator limitations**: `rda_volatility` is constant because the RDA price path is deterministic; the RDA loop calls `tick()` before `try_buy()` so agents never see the start price or the final round; DAICO vs RDA "total raised" is not like-for-like; no secondary market. In v5 there is no exogenous project-deterioration process, so LAF's exit behaviour rests on assumption A4 (see the LAF note and the sensitivity file); the commit-inactivity signal has no counterpart in the model.
-8. **Not yet done**: intermediary and jurisdictional/legal analysis (RQ3, RQ4 in Proposal v3); application of a consistent failure-mode taxonomy to eligible records; recalibration of the v5 simulator for the 2026-09-27 contracts; and testnet deployment. Journal 2 is a separate submission and is not included in this repository.
+8. **Not done**: quantitative intermediary and jurisdictional analysis (RQ3 and RQ4 are discussed qualitatively in the final report, as agreed with the mentor); a second coder for the dataset; recalculation of the counterfactual estimates under the current rules; a public testnet deployment; and an independent professional audit. Journals and the final report are separate submissions and are not included in this repository.
 
-## Research readiness and next steps
+## Status of the research-readiness items (October 2026)
 
-The following are proposed work items, not completed results. They address the
-main gap between the current empirical inventory, the historical simulation,
-and the revised Solidity prototype.
+The five items proposed on 3 October and how they were closed:
 
-1. **Normalize the empirical unit of analysis.** Assign stable entity and
-   record identifiers; distinguish projects, fundraising campaigns, platforms,
-   governance events, proposals, and aggregate records; resolve cross-category
-   duplicates; and recompute counts and raise totals from eligible campaigns.
-   Until then, the existing 82-row totals are descriptive only.
-2. **Apply the failure codebook.** Use the proposed operational definitions in
-   `03-dataset/FAILURE-CODING-CODEBOOK.md` to code observable outcomes and
-   evidence separately from claims about their causes. Record uncertain cases
-   explicitly and review disagreements before reporting prevalence.
-3. **Build a versioned simulation for the current prototype.** Follow
-   `01-simulation/MODEL-ALIGNMENT-PLAN.md`. Preserve v5 as the historical model;
-   implement and validate current contract semantics in a separate version,
-   then compare revisions with matched agents and seeds.
-4. **Add failure and honest-project scenarios.** Include malicious fund
-   diversion, gradual deterioration, governance apathy, signal error, market
-   panic, and healthy-project controls. Report investor recovery, team funding,
-   pause and terminal outcomes, and parameter sensitivity together.
-5. **Revisit counterfactuals and open research questions.** Recalculate claims
-   only after the current-rule model is validated; complete the intermediary
-   and jurisdictional analysis (RQ3/RQ4); and distinguish analytical estimates
-   from simulation output and observed empirical evidence.
+1. **Normalize the empirical unit of analysis.** Done: stable row and entity
+   identifiers, record types, duplicate links and eligibility decisions are in
+   `03-dataset/coding/row_codes.csv`; totals are recomputed from eligible
+   campaigns.
+2. **Apply the failure codebook.** Done for every row by one coder, with dated
+   evidence for each failed campaign; the second-reviewer step remains open.
+3. **Build a versioned simulation for the current prototype.** Done:
+   `01-simulation/capstone_sim_v6.py`, with v5 preserved and a parity check.
+4. **Add failure and honest-project scenarios.** Done for an honest team under
+   a bank run, a malicious team at the maximum permitted rate, gradual
+   deterioration and a team-aligned whale; governance apathy as a separate
+   scenario and strategic team behaviour remain future work.
+5. **Revisit counterfactuals and open research questions.** RQ3/RQ4 are
+   treated qualitatively in the final report; the analytical counterfactual
+   estimates are kept and labelled as pre-revision estimates.
 
 **Evidence boundary:** the dated 11 October verification includes raw output
 and provenance for the current Solidity sources. Historical v5 simulation
-results still describe the earlier rules; passing contract tests do not
-establish revised investor recovery or project-success rates. The 17 October
+results describe the earlier rules and v6 models the current rules under the
+same behavioural assumptions; neither, and no passing contract test,
+establishes real-world investor recovery or project-success rates. The 17 October
 review run is retained in `02-solidity/test-output/verification-2026-10-17/`
 (106 tests). The current record, after the independent review that locked the
 module roles and opened exits before funding close, is
