@@ -63,8 +63,8 @@ verifies the current configuration guards and minimum-vesting rate bound with
 properties (Foundry v1.8.5, solc 0.8.28, 256 fuzz runs, 128 invariant runs at
 depth 64). Its metadata records the reviewed working-tree source hash.
 
-The current record is `test-output/verification-2026-10-17-role-lock/`. It was
-run on a clean worktree of commit `bd2e7de` (locked module roles, exits before
+The role-lock record is `test-output/verification-2026-10-17-role-lock/`. It was
+run on a fresh worktree of commit `bd2e7de` (locked module roles, exits before
 funding close, Rule 2 applied before the transfer): 117 tests passed, none
 failed or skipped, and the same ten invariant properties passed under the same
 toolchain and sampling settings. `test-output/gas-report-2026-10-17.txt` is a
@@ -78,3 +78,12 @@ verification, testnet deployment, or a new economic evaluation. The historical
 v5 recovery and terminal-rate figures still cannot be attributed to revised
 contracts. Fixed seeds and versions improve traceability; timings and gas
 output can differ across operating systems, toolchains and environments.
+
+The current record is `test-output/verification-2026-10-17-final/`: the same
+tested source digest (`556bb06c...`, unchanged since `bd2e7de`), run on a fresh
+worktree of commit `8bf154d` after the runner was fixed to decode and save the
+Forge log as UTF-8. Its `log_sha256` equals the SHA-256 of the saved
+`forge-test.txt`. In the earlier Windows records the runner decoded the log
+with the platform default (cp1252), so their recorded `log_sha256` cannot be
+reproduced from the saved file with standard tools; their counts and source
+digests are unaffected.

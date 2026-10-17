@@ -1,0 +1,2 @@
+# Keep recorded verification logs byte-exact so their SHA-256 can be checked
+02-solidity/test-output/** -text

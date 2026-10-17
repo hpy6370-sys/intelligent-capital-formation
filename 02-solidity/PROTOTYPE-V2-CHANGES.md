@@ -143,12 +143,11 @@ threshold up. A local review run on 2026-10-03 with Foundry 1.8.3 and solc
 properties (128 runs, depth 64). The earlier 2026-09-27 result predates these
 changes; the raw output from the 2026-10-03 run is not checked in.
 
-The v5 Monte Carlo simulator has **not** been revised to use these rules.
-Its reported recovery, vote concentration and terminal rates cannot be used
-to claim an improvement for the current contracts. The next research step is
-to rerun the same agents and failure scenarios under both revisions, with
-explicit false-pause and honest-team funding outcomes. This is a prototype,
-not an audited deployment.
+The v5 Monte Carlo simulator is kept as the historical model of the earlier
+rules. `01-simulation/capstone_sim_v6.py` re-runs the same agents and seeds
+under these rules, with false-pause, honest-team and malicious-team outcomes;
+see `01-simulation/LAF-SIMULATION-V6-NOTE.md`. This is a prototype, not an
+audited deployment.
 
 ## 11 October verification evidence
 

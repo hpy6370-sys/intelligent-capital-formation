@@ -1,0 +1,81 @@
+{
+  "recorded_at_utc": "2026-10-17T08:26:07.950522+00:00",
+  "git_base_commit": "8bf154dd540d1331b95dedea04ef0cf83b342216",
+  "worktree_changes": [
+    "?? evidence/"
+  ],
+  "tested_source_sha256": "556bb06cc09feaf14182fd99b7d255be86f6a4add6d8efbc1c10569737c2abb4",
+  "verification_runner_sha256": "72423bd57e4496181da5ffb02c5022ad764caca6c8c434198ebef0968f9101e1",
+  "tested_files": [
+    "foundry.lock",
+    "foundry.toml",
+    "script/DeployLAF.s.sol",
+    "src/interfaces/ILAFVault.sol",
+    "src/interfaces/IProtocolModuleConfig.sol",
+    "src/interfaces/IQuadraticGovernor.sol",
+    "src/interfaces/IRageQuit.sol",
+    "src/interfaces/ISignalMonitor.sol",
+    "src/LAFShareToken.sol",
+    "src/LAFVault.sol",
+    "src/QuadraticGovernor.sol",
+    "src/RageQuitModule.sol",
+    "src/SignalMonitor.sol",
+    "test/integration/CrossLayerTest.sol",
+    "test/invariant/LAFHandler.sol",
+    "test/invariant/LAFInvariant.t.sol",
+    "test/LAFTestBase.sol",
+    "test/stress/StressTest.sol",
+    "test/unit/LAFVaultTest.sol",
+    "test/unit/QuadraticGovernorTest.sol",
+    "test/unit/RageQuitTest.sol",
+    "test/unit/SignalMonitorTest.sol"
+  ],
+  "source_unchanged_during_run": true,
+  "forge_version": "forge Version: 1.8.5\nCommit SHA: 51a52c59cffd940f76eddd0b4bb1791aa4b5ac7f\nBuild Timestamp: 2026-10-05T17:01:32.131957300Z (1791219692)\nBuild Profile: dist",
+  "compiler": "0.8.28",
+  "evm_version": "prague",
+  "optimizer": false,
+  "optimizer_runs": 200,
+  "dependencies": {
+    "forge-std": {
+      "revision": "bf647bd6046f2f7da30d0c2bf435e5c76a780c1b",
+      "solidity_sha256": "5d9b8fecac6862faad0f4822a7ba62d729a4f4e36d0e7b12a79d6d81edd0774d"
+    },
+    "openzeppelin-contracts": {
+      "revision": "cab19933c33c2ad1d4c7a84864a3601dddfd16f3",
+      "solidity_sha256": "b0c805028b8f19028ca9d33d0da05ce06d64078809090a493c3498830b35e12a"
+    }
+  },
+  "command": [
+    "forge",
+    "test",
+    "-vv",
+    "--fuzz-seed",
+    "0x6131"
+  ],
+  "fuzz_seed": "0x6131",
+  "fuzz_runs": 256,
+  "invariant_runs": 128,
+  "invariant_depth": 64,
+  "exit_code": 0,
+  "counts": {
+    "passed": 117,
+    "failed": 0,
+    "skipped": 0,
+    "total": 117
+  },
+  "passing_invariants": [
+    "invariant_claimableBoundedByUnreleased",
+    "invariant_noClaimableWhenPausedOrTerminal",
+    "invariant_outflowNeverExceedsDeposits",
+    "invariant_shareSupplyBounded",
+    "invariant_signalFlagsBackedByQuorum",
+    "invariant_terminalImpliesZeroRate",
+    "invariant_terminalIsOneWay",
+    "invariant_unreleasedBalanceConsistent",
+    "invariant_vaultBalanceEqualsAccountingIdentity",
+    "invariant_vaultBalanceNonNegative"
+  ],
+  "log_sha256": "e4d8bf138907974a2f2cff3ae9d6dafd569d452320d439632e9277855c7ae38b",
+  "verified": true
+}
