@@ -21,10 +21,13 @@ contract LAFShareToken is ERC20, ERC20Permit, ERC20Votes, AccessControl {
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
     bytes32 public constant BURNER_ROLE = keccak256("BURNER_ROLE");
 
+    error ZeroAddress();
+
     constructor(address admin)
         ERC20("LAF Share", "LAFS")
         ERC20Permit("LAF Share")
     {
+        if (admin == address(0)) revert ZeroAddress();
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
     }
 

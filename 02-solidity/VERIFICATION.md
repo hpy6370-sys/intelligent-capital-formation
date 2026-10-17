@@ -57,6 +57,12 @@ The 11 October 2026 record is in `test-output/verification-2026-10-11/`.
 84/95-test statements are historical reports; the new raw log supplies its
 own actual count, toolchain and source identity.
 
+The 17 October review run is in `test-output/verification-2026-10-17/`. It
+verifies the current configuration guards and minimum-vesting rate bound with
+106 passing tests, zero failures or skips, and the same ten invariant
+properties (Foundry v1.8.5, solc 0.8.28, 256 fuzz runs, 128 invariant runs at
+depth 64). Its metadata records the reviewed working-tree source hash.
+
 Passing tests demonstrate the exercised functional properties under the
 configured sampling budget. They are not a production audit, full formal
 verification, testnet deployment, or a new economic evaluation. The historical

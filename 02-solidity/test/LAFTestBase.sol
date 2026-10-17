@@ -31,6 +31,7 @@ abstract contract LAFTestBase is Test {
     uint256 constant RAGE_QUIT_AUTO_PAUSE_BPS = 2500;  // 25%
     uint256 constant POOL_DEPLETION_BPS = 1000;         // 10%
     uint256 constant MAX_PAUSE_DURATION = 60 days;
+    uint256 constant MINIMUM_VESTING_DURATION = 1 minutes;
     uint256 constant CHECKPOINT_INTERVAL = 90 days;
     uint256 constant CHECKPOINT_WINDOW = 14 days;
     uint256 constant QUORUM_BPS = 5001;                  // more than half of outstanding shares
@@ -52,7 +53,8 @@ abstract contract LAFTestBase is Test {
             admin, team, shareToken,
             RAGE_QUIT_AUTO_PAUSE_BPS,
             POOL_DEPLETION_BPS,
-            MAX_PAUSE_DURATION
+            MAX_PAUSE_DURATION,
+            MINIMUM_VESTING_DURATION
         );
 
         rageQuit = new RageQuitModule(vault, shareToken);

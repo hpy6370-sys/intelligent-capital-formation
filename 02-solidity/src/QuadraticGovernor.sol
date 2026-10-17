@@ -72,6 +72,8 @@ contract QuadraticGovernor is IQuadraticGovernor, AccessControl {
     error FundingNotClosed();
     error InvalidRateDelta();
     error InvalidBasisPoints(uint256 value);
+    error ZeroAddress();
+    error InvalidConfiguration();
 
     constructor(
         address admin,
@@ -86,6 +88,14 @@ contract QuadraticGovernor is IQuadraticGovernor, AccessControl {
     ) {
         if (_quorumBps == 0 || _quorumBps > 10_000) revert InvalidBasisPoints(_quorumBps);
         if (_majorityBps < 5_000 || _majorityBps >= 10_000) revert InvalidBasisPoints(_majorityBps);
+        if (admin == address(0) || address(_vault) == address(0) || address(_shareToken) == address(0)) {
+            revert ZeroAddress();
+        }
+        if (
+            _checkpointInterval == 0 || _checkpointWindowDuration == 0 ||
+            _defaultPauseResponsePeriod == 0 || _signalRateLimit == 0 ||
+            _defaultPauseResponsePeriod > _vault.maxPauseDuration()
+        ) revert InvalidConfiguration();
 
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
 

@@ -36,19 +36,19 @@ Existing on-chain fundraising mechanisms (ICO, reverse Dutch auction, bonding cu
 
 | Layer | Contract | Mechanism |
 |---|---|---|
-| 1 Streaming Release | `LAFVault` | Team can only `claim()` funds at a linear `ratePerSecond`; capped by elapsed time and by unreleased balance |
+| 1 Streaming Release | `LAFVault` | Team can only `claim()` funds at a linear `ratePerSecond`; the minimum vesting duration is immutable before deposits, and the initial rate is capped so even a 2x governance increase cannot exhaust the raise faster |
 | 2 Rage Quit | `RageQuitModule` | Any share holder can exit any time, pro rata of the unreleased pool, no vote needed (works during pause and terminal state) |
 | 3 Checkpoint Voting | `QuadraticGovernor` | First scheduled window 90 days after funding closes, then 90 days after each resolution; one 14-day window at a time. Votes on all five actions are weighted by snapshot shares; quorum is more than 50 % of snapshot supply, and the winning action needs more than 50 % of cast weight. No quorum = CONTINUE |
 | 4 Signal Monitor | `SignalMonitor` | 5 health metrics (TVL decline, active-address decline, team outflow, commit inactivity, HHI increase) with warning/critical thresholds, each reported by a registered set of up to 16 reporters; a metric only has an effective value when at least `quorum` reporters have submitted within `reportWindow`, taken as the median of those fresh submissions (v2). >=2 warnings or >=1 critical requests an early checkpoint from the Governor. It never touches the vault |
 
-Inter-layer rules (all in code, defaults in `02-solidity/script/DeployLAF.s.sol`): Rule 2, exits during the current and previous 29 calendar days greater than 25 % of the balance immediately before the latest exit auto-pause the vault, whether a checkpoint is open or not; Rule 3, signal-triggered checkpoints are rate-limited to one per 30 days; Rule 4, a zero balance or an unreleased balance below 10 % of the amount not yet vested under the stream puts the vault in a one-way terminal state. A rate-change vote uses a fixed step of half the initial rate, and the overall rate cannot exceed twice the initial rate. Pause is bounded (30-day default response period, 60-day maximum). An active pause cannot be reset or extended by a second pause action; a passed pause vote during an existing pause preserves its original timeout.
+Inter-layer rules (all in code, defaults in `02-solidity/script/DeployLAF.s.sol`): the deployed vault fixes a 365-day minimum vesting duration before deposits; at funding close, the admin-selected initial rate must be no more than `totalDeposited / (2 * minimumVestingDuration)`, so the governor's 2x rate cap cannot stream the full raise faster than the committed duration. Rule 2, exits during the current and previous 29 calendar days greater than 25 % of the balance immediately before the latest exit auto-pause the vault, whether a checkpoint is open or not; Rule 3, signal-triggered checkpoints are rate-limited to one per 30 days; Rule 4, a zero balance or an unreleased balance below 10 % of the amount not yet vested under the stream puts the vault in a one-way terminal state. A rate-change vote uses a fixed step of half the initial rate, and the overall rate cannot exceed twice the initial rate. Pause is bounded (30-day default response period, 60-day maximum). An active pause cannot be reset or extended by a second pause action; a passed pause vote during an existing pause preserves its original timeout.
 
 ## What is in each folder
 
 - `01-simulation/` Monte Carlo simulator. `capstone_sim_v4.py` (v4.2, DAICO vs reverse Dutch auction, calibrated to dataset figures) and `capstone_sim_v5.py` (v5.0, adds LAF on the same agents and scenarios without changing the v4 numbers), `capstone_viz_v4.py` / `capstone_viz_v5.py` (5 figures + PDF each), `sim_v5_sensitivity.py` (sensitivity of the LAF results to assumption A4), `verify_daico_patch.py` (checks the DAICO voting-threshold fix), stored outputs in `output/`, figures in `figures/` (v5 files carry a `_v5` suffix). `LAF-SIMULATION-NOTE.md` explains the LAF modelling assumptions, the three-mechanism results and four design findings for the prototype. Configuration is in-code (`SCENARIOS`, `RealDataCalibration`, `N = 50`); there is no separate config file and no CSV/JSON export, the simulator prints to stdout.
-- `02-solidity/` Foundry project: 5 contracts (1,062 lines) + 4 interfaces (198 lines) in `src/`, deploy script (84 lines), tests in `test/` (unit, integration, stress, invariant), `foundry.toml` / `foundry.lock`. Build artefacts (`out/`, `cache/`) and vendored deps (`lib/`, 17 MB) are excluded; see install notes below. `test-output/forge-test.txt` is the full log of the run made while packaging (2026-09-08).
+- `02-solidity/` Foundry project: 5 contracts plus interfaces, a deploy script, and unit, integration, stress and invariant tests. Build artefacts (`out/`, `cache/`) and vendored dependencies (`lib/`) are excluded from the repository; see `VERIFICATION.md` and `DEPLOYMENT.md`. The 8 September log is archival; the 11 October and 17 October dated runs retain their raw output and provenance.
 - `03-dataset/` The source-linked 82-row working inventory (2026-08-31; ICO 18 / RDA 14 / bonding curve 16 / DAICO 11 / LBP 23). It supersedes the May 50-row draft and the August expansion list; the file's changelog records how it was built. It is not yet normalized to unique projects or campaigns, and the six-mode taxonomy has not been applied. `FAILURE-CODING-CODEBOOK.md` proposes record types, evidence rules, and a reproducible coding workflow; its definitions are a protocol, not completed classifications.
-- `04-docs/` Original Solidity design document, Proposal v3 (English) and the submitted Journal 1 (PDF). The design document predates the current governance and Rule 2/4 revisions; consult `02-solidity/PROTOTYPE-V2-CHANGES.md` for current semantics.
+- `04-docs/` Original Solidity design document, Proposal v3 (English) and the submitted Journal 1 (PDF). The original design document and walkthrough predate the current voting, funding-rate, Rule 2 and Rule 4 semantics; consult `02-solidity/PROTOTYPE-V2-CHANGES.md` for current behavior and `02-solidity/DEPLOYMENT.md` for deployment assumptions.
 - `05-counterfactuals/` Three files: the counterfactual case analysis (5 cases, 2026-08-31), the 3x3x3 scenario matrix (27 scenarios) and the deep dive on the 9 P0 scenarios. Key figures are summarised below.
 
 ## How to run
@@ -159,7 +159,18 @@ and the revised Solidity prototype.
 **Evidence boundary:** the dated 11 October verification includes raw output
 and provenance for the current Solidity sources. Historical v5 simulation
 results still describe the earlier rules; passing contract tests do not
-establish revised investor recovery or project-success rates.
+establish revised investor recovery or project-success rates. The 17 October
+review run is retained in `02-solidity/test-output/verification-2026-10-17/`:
+106 tests passed, no tests failed or skipped, and ten invariant properties
+passed under Foundry v1.8.5 / solc 0.8.28.
+
+The prototype is not an audited or production-ready fundraising system. The
+deploy script requires a team address distinct from the deployer/admin, but its
+reporter configuration remains a 1-of-1 development setting and it registers
+no reporter at deployment. A production deployment would need an independently
+governed admin, a multi-reporter oracle setup and testnet review. The required
+environment variables and funding-rate bound are documented in
+`02-solidity/DEPLOYMENT.md`.
 
 ## Not included / available on request
 

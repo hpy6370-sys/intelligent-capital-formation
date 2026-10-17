@@ -3,12 +3,22 @@ pragma solidity 0.8.28;
 
 import {LAFTestBase} from "../LAFTestBase.sol";
 import {RageQuitModule} from "../../src/RageQuitModule.sol";
+import {LAFVault} from "../../src/LAFVault.sol";
+import {LAFShareToken} from "../../src/LAFShareToken.sol";
 
 /**
  * @title RageQuitTest
  * @notice Unit tests for RageQuitModule (Layer 2) — §7.2 of laf_solidity_design.md.
  */
 contract RageQuitTest is LAFTestBase {
+    function test_constructorRejectsZeroDependencies() public {
+        vm.expectRevert(RageQuitModule.ZeroAddress.selector);
+        new RageQuitModule(vault, LAFShareToken(address(0)));
+
+        vm.expectRevert(RageQuitModule.ZeroAddress.selector);
+        new RageQuitModule(LAFVault(payable(address(0))), shareToken);
+    }
+
     // ================================================================
     //                     PRO-RATA PAYOUT
     // ================================================================

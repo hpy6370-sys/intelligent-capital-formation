@@ -67,6 +67,9 @@ contract LAFVault is ILAFVault, AccessControl, ReentrancyGuard {
     uint256 public immutable rageQuitAutoPauseBps;  // default 2500 (25%)
     uint256 public immutable poolDepletionBps;       // default 1000 (10%)
     uint256 public immutable maxPauseDuration;       // default 60 days
+    // Minimum time to exhaust the raise even if governance increases the rate
+    // to its 2x cap. This is fixed before deposits begin.
+    uint256 public immutable minimumVestingDuration;
 
     // ---- Errors ----
     error FundingNotOpen();
@@ -85,6 +88,10 @@ contract LAFVault is ILAFVault, AccessControl, ReentrancyGuard {
     error TransferFailed();
     error RateTooHigh(uint256 requested, uint256 maximum);
     error InvalidBasisPoints(uint256 value);
+    error ZeroAddress();
+    error InvalidConfiguration();
+    error NoDeposits();
+    error InvalidRate();
 
     constructor(
         address admin,
@@ -92,10 +99,17 @@ contract LAFVault is ILAFVault, AccessControl, ReentrancyGuard {
         LAFShareToken _shareToken,
         uint256 _rageQuitAutoPauseBps,
         uint256 _poolDepletionBps,
-        uint256 _maxPauseDuration
+        uint256 _maxPauseDuration,
+        uint256 _minimumVestingDuration
     ) {
         if (_rageQuitAutoPauseBps > 10_000) revert InvalidBasisPoints(_rageQuitAutoPauseBps);
         if (_poolDepletionBps > 10_000) revert InvalidBasisPoints(_poolDepletionBps);
+        if (admin == address(0) || team == address(0) || address(_shareToken) == address(0)) {
+            revert ZeroAddress();
+        }
+        if (_maxPauseDuration == 0 || _minimumVestingDuration == 0 || _minimumVestingDuration > type(uint256).max / 2) {
+            revert InvalidConfiguration();
+        }
 
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(TEAM_ROLE, team);
@@ -104,6 +118,7 @@ contract LAFVault is ILAFVault, AccessControl, ReentrancyGuard {
         rageQuitAutoPauseBps = _rageQuitAutoPauseBps;
         poolDepletionBps = _poolDepletionBps;
         maxPauseDuration = _maxPauseDuration;
+        minimumVestingDuration = _minimumVestingDuration;
     }
 
     // ================================================================
@@ -130,9 +145,14 @@ contract LAFVault is ILAFVault, AccessControl, ReentrancyGuard {
     /// @inheritdoc ILAFVault
     function closeFunding(uint256 _ratePerSecond) external override onlyRole(DEFAULT_ADMIN_ROLE) {
         if (fundingClosed) revert FundingAlreadyClosed();
-        require(_ratePerSecond > 0, "Rate must be positive");
-        if (_ratePerSecond > type(uint256).max / 2) {
-            revert RateTooHigh(_ratePerSecond, type(uint256).max / 2);
+        if (totalDeposited == 0) revert NoDeposits();
+        if (_ratePerSecond == 0) revert InvalidRate();
+        // The governance rate cap is 2x the initial rate. Bound the initial
+        // rate so even a maximum increase cannot release the raise faster
+        // than the schedule investors saw before depositing.
+        uint256 maximumInitialRate = totalDeposited / (minimumVestingDuration * 2);
+        if (_ratePerSecond > maximumInitialRate) {
+            revert RateTooHigh(_ratePerSecond, maximumInitialRate);
         }
 
         fundingClosed = true;

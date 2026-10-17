@@ -3,6 +3,7 @@ pragma solidity 0.8.28;
 
 import {LAFTestBase} from "../LAFTestBase.sol";
 import {SignalMonitor} from "../../src/SignalMonitor.sol";
+import {QuadraticGovernor} from "../../src/QuadraticGovernor.sol";
 import {ISignalMonitor} from "../../src/interfaces/ISignalMonitor.sol";
 import {IQuadraticGovernor} from "../../src/interfaces/IQuadraticGovernor.sol";
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
@@ -271,6 +272,28 @@ contract SignalMonitorTest is LAFTestBase {
     function test_zeroWindowReverts() public {
         vm.expectRevert(SignalMonitor.InvalidWindow.selector);
         new SignalMonitor(admin, governor, 2, 1, QUORUM, 0);
+    }
+
+    function test_zeroOrImpossibleCombinatorThresholdsRevert() public {
+        vm.expectRevert(abi.encodeWithSelector(SignalMonitor.InvalidCombinatorThreshold.selector, 0));
+        new SignalMonitor(admin, governor, 0, 1, QUORUM, WINDOW);
+
+        vm.expectRevert(abi.encodeWithSelector(SignalMonitor.InvalidCombinatorThreshold.selector, 6));
+        new SignalMonitor(admin, governor, 6, 1, QUORUM, WINDOW);
+
+        vm.expectRevert(abi.encodeWithSelector(SignalMonitor.InvalidCombinatorThreshold.selector, 0));
+        new SignalMonitor(admin, governor, 2, 0, QUORUM, WINDOW);
+
+        vm.expectRevert(abi.encodeWithSelector(SignalMonitor.InvalidCombinatorThreshold.selector, 6));
+        new SignalMonitor(admin, governor, 2, 6, QUORUM, WINDOW);
+    }
+
+    function test_constructorRejectsZeroAdminOrGovernor() public {
+        vm.expectRevert(SignalMonitor.ZeroAddress.selector);
+        new SignalMonitor(address(0), governor, 2, 1, QUORUM, WINDOW);
+
+        vm.expectRevert(SignalMonitor.ZeroAddress.selector);
+        new SignalMonitor(admin, QuadraticGovernor(address(0)), 2, 1, QUORUM, WINDOW);
     }
 
     // ================================================================

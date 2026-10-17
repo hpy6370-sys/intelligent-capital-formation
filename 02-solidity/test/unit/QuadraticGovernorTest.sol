@@ -3,6 +3,7 @@ pragma solidity 0.8.28;
 
 import {LAFTestBase} from "../LAFTestBase.sol";
 import {LAFVault} from "../../src/LAFVault.sol";
+import {LAFShareToken} from "../../src/LAFShareToken.sol";
 import {QuadraticGovernor} from "../../src/QuadraticGovernor.sol";
 import {IQuadraticGovernor} from "../../src/interfaces/IQuadraticGovernor.sol";
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
@@ -63,6 +64,34 @@ contract QuadraticGovernorTest is LAFTestBase {
     function test_constructorAcceptsMaximumQuorumBps() public {
         QuadraticGovernor configured = _deployGovernor(10_000, MAJORITY_BPS);
         assertEq(configured.quorumBps(), 10_000);
+    }
+
+    function test_constructorRejectsZeroAdminOrDependencies() public {
+        vm.expectRevert(QuadraticGovernor.ZeroAddress.selector);
+        new QuadraticGovernor(address(0), vault, shareToken, CHECKPOINT_INTERVAL, CHECKPOINT_WINDOW, QUORUM_BPS, MAJORITY_BPS, DEFAULT_PAUSE_PERIOD, SIGNAL_RATE_LIMIT);
+
+        vm.expectRevert(QuadraticGovernor.ZeroAddress.selector);
+        new QuadraticGovernor(admin, LAFVault(payable(address(0))), shareToken, CHECKPOINT_INTERVAL, CHECKPOINT_WINDOW, QUORUM_BPS, MAJORITY_BPS, DEFAULT_PAUSE_PERIOD, SIGNAL_RATE_LIMIT);
+
+        vm.expectRevert(QuadraticGovernor.ZeroAddress.selector);
+        new QuadraticGovernor(admin, vault, LAFShareToken(address(0)), CHECKPOINT_INTERVAL, CHECKPOINT_WINDOW, QUORUM_BPS, MAJORITY_BPS, DEFAULT_PAUSE_PERIOD, SIGNAL_RATE_LIMIT);
+    }
+
+    function test_constructorRejectsUnusableTimingAndPauseSettings() public {
+        vm.expectRevert(QuadraticGovernor.InvalidConfiguration.selector);
+        new QuadraticGovernor(admin, vault, shareToken, 0, CHECKPOINT_WINDOW, QUORUM_BPS, MAJORITY_BPS, DEFAULT_PAUSE_PERIOD, SIGNAL_RATE_LIMIT);
+
+        vm.expectRevert(QuadraticGovernor.InvalidConfiguration.selector);
+        new QuadraticGovernor(admin, vault, shareToken, CHECKPOINT_INTERVAL, 0, QUORUM_BPS, MAJORITY_BPS, DEFAULT_PAUSE_PERIOD, SIGNAL_RATE_LIMIT);
+
+        vm.expectRevert(QuadraticGovernor.InvalidConfiguration.selector);
+        new QuadraticGovernor(admin, vault, shareToken, CHECKPOINT_INTERVAL, CHECKPOINT_WINDOW, QUORUM_BPS, MAJORITY_BPS, 0, SIGNAL_RATE_LIMIT);
+
+        vm.expectRevert(QuadraticGovernor.InvalidConfiguration.selector);
+        new QuadraticGovernor(admin, vault, shareToken, CHECKPOINT_INTERVAL, CHECKPOINT_WINDOW, QUORUM_BPS, MAJORITY_BPS, MAX_PAUSE_DURATION + 1, SIGNAL_RATE_LIMIT);
+
+        vm.expectRevert(QuadraticGovernor.InvalidConfiguration.selector);
+        new QuadraticGovernor(admin, vault, shareToken, CHECKPOINT_INTERVAL, CHECKPOINT_WINDOW, QUORUM_BPS, MAJORITY_BPS, DEFAULT_PAUSE_PERIOD, 0);
     }
 
     // ---- Helpers ----
@@ -153,7 +182,9 @@ contract QuadraticGovernorTest is LAFTestBase {
         vm.prank(bob);
         vault.deposit{value: 5_000}();
         vm.prank(admin);
-        vault.closeFunding(RATE_PER_SECOND);
+        // The exact quorum boundary uses wei-scale deposits; use a compatible
+        // low stream rate so the test isolates voting math.
+        vault.closeFunding(1);
 
         uint256 id = _openScheduled();
         _initiate(alice, id, HALT, 0);
