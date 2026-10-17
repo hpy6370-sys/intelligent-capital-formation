@@ -7,7 +7,8 @@ pragma solidity 0.8.28;
  *
  * Opens checkpoint windows at regular intervals (default 90 days).
  * Within a window, any holder can initiate an audit vote; votes are
- * weighted by balanceAtSnapshot. The initiator's action is advisory; all
+ * weighted by delegated votes at the snapshot block (the holder's balance,
+ * since the share token self-delegates new holders). The initiator's action is advisory; all
  * actions remain available to voters. If no vote is initiated,
  * the checkpoint resolves as CONTINUE (default-continue semantics).
  *

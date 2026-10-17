@@ -4,6 +4,7 @@ pragma solidity 0.8.28;
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {ILAFVault} from "./interfaces/ILAFVault.sol";
+import {IProtocolModuleConfig} from "./interfaces/IProtocolModuleConfig.sol";
 import {LAFShareToken} from "./LAFShareToken.sol";
 
 /**
@@ -12,9 +13,10 @@ import {LAFShareToken} from "./LAFShareToken.sol";
  *
  * Holds all deposited capital. After funding closes, the team claims
  * funds linearly over time at `ratePerSecond`. Governance (Layer 3)
- * can pause, resume, halt, or adjust the rate via GOVERNOR_ROLE.
+ * can pause (for a bounded period), halt, or adjust the rate via
+ * GOVERNOR_ROLE; a pause ends when its response period times out.
  * Rage-quit payouts (Layer 2) are deducted from the unreleased balance
- * via RAGEQUIT_ROLE.
+ * via RAGEQUIT_ROLE. Before funding closes, an exit returns the deposit.
  *
  * All configurable parameters are constructor arguments.
  * No upgradability, no proxy — redeploy for iteration.
@@ -24,6 +26,9 @@ contract LAFVault is ILAFVault, AccessControl, ReentrancyGuard {
     bytes32 public constant GOVERNOR_ROLE = keccak256("GOVERNOR_ROLE");
     bytes32 public constant RAGEQUIT_ROLE = keccak256("RAGEQUIT_ROLE");
     bytes32 public constant TEAM_ROLE = keccak256("TEAM_ROLE");
+    // No account is ever assigned this role. Sensitive roles use it as their
+    // AccessControl admin so DEFAULT_ADMIN_ROLE cannot reassign them later.
+    bytes32 public constant LOCKED_ROLE_ADMIN = keccak256("LOCKED_ROLE_ADMIN");
 
     // ---- Enums ----
     enum PauseReason { NONE, AUDIT_RESOLUTION, RAGE_QUIT_THRESHOLD }
@@ -53,6 +58,7 @@ contract LAFVault is ILAFVault, AccessControl, ReentrancyGuard {
     uint256 public override totalClaimedByTeam;
     uint256 public override totalExitedViaRageQuit;
     bool    public fundingClosed;
+    bool    public modulesConfigured;
 
     // Checkpoint metadata retained for observability. Rule 2 now uses the
     // bounded daily exit history below, not the checkpoint snapshot.
@@ -92,6 +98,9 @@ contract LAFVault is ILAFVault, AccessControl, ReentrancyGuard {
     error InvalidConfiguration();
     error NoDeposits();
     error InvalidRate();
+    error ModulesAlreadyConfigured();
+    error ModulesNotConfigured();
+    error InvalidModule();
 
     constructor(
         address admin,
@@ -107,12 +116,22 @@ contract LAFVault is ILAFVault, AccessControl, ReentrancyGuard {
         if (admin == address(0) || team == address(0) || address(_shareToken) == address(0)) {
             revert ZeroAddress();
         }
+        if (address(_shareToken).code.length == 0) revert InvalidModule();
+        if (admin == team) revert InvalidConfiguration();
         if (_maxPauseDuration == 0 || _minimumVestingDuration == 0 || _minimumVestingDuration > type(uint256).max / 2) {
             revert InvalidConfiguration();
         }
 
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(TEAM_ROLE, team);
+
+        // Roles that can move money or change the stream cannot be reassigned
+        // through AccessControl after deployment. A one-time configuration
+        // function below installs the two system modules using internal grants.
+        _setRoleAdmin(LOCKED_ROLE_ADMIN, LOCKED_ROLE_ADMIN);
+        _setRoleAdmin(TEAM_ROLE, LOCKED_ROLE_ADMIN);
+        _setRoleAdmin(GOVERNOR_ROLE, LOCKED_ROLE_ADMIN);
+        _setRoleAdmin(RAGEQUIT_ROLE, LOCKED_ROLE_ADMIN);
 
         shareToken = _shareToken;
         rageQuitAutoPauseBps = _rageQuitAutoPauseBps;
@@ -121,12 +140,42 @@ contract LAFVault is ILAFVault, AccessControl, ReentrancyGuard {
         minimumVestingDuration = _minimumVestingDuration;
     }
 
+    /// @notice One-time installation of the governor and rage-quit module.
+    /// @dev These roles are permanently non-administerable after construction;
+    ///      this function is the only path that can grant their initial members.
+    function configureModules(address governor, address rageQuitModule)
+        external
+        onlyRole(DEFAULT_ADMIN_ROLE)
+    {
+        if (modulesConfigured) revert ModulesAlreadyConfigured();
+        if (
+            governor == address(0) || rageQuitModule == address(0) ||
+            governor == rageQuitModule || governor.code.length == 0 || rageQuitModule.code.length == 0
+        ) revert InvalidModule();
+        if (
+            IProtocolModuleConfig(governor).vault() != address(this) ||
+            IProtocolModuleConfig(governor).shareToken() != address(shareToken) ||
+            IProtocolModuleConfig(rageQuitModule).vault() != address(this) ||
+            IProtocolModuleConfig(rageQuitModule).shareToken() != address(shareToken)
+        ) revert InvalidModule();
+        // The roles cannot be repaired after this call, so reject swapped
+        // arguments: only the governor exposes a checkpoint schedule.
+        if (!_exposesCheckpointInterval(governor) || _exposesCheckpointInterval(rageQuitModule)) {
+            revert InvalidModule();
+        }
+
+        modulesConfigured = true;
+        _grantRole(GOVERNOR_ROLE, governor);
+        _grantRole(RAGEQUIT_ROLE, rageQuitModule);
+    }
+
     // ================================================================
     //                      INVESTOR ACTIONS
     // ================================================================
 
     /// @inheritdoc ILAFVault
     function deposit() external payable override {
+        if (!modulesConfigured) revert ModulesNotConfigured();
         if (fundingClosed) revert FundingAlreadyClosed();
         if (msg.value == 0) revert ZeroDeposit();
 
@@ -144,6 +193,7 @@ contract LAFVault is ILAFVault, AccessControl, ReentrancyGuard {
 
     /// @inheritdoc ILAFVault
     function closeFunding(uint256 _ratePerSecond) external override onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (!modulesConfigured) revert ModulesNotConfigured();
         if (fundingClosed) revert FundingAlreadyClosed();
         if (totalDeposited == 0) revert NoDeposits();
         if (_ratePerSecond == 0) revert InvalidRate();
@@ -249,7 +299,15 @@ contract LAFVault is ILAFVault, AccessControl, ReentrancyGuard {
 
     /// @inheritdoc ILAFVault
     function withdrawForRageQuit(address holder, uint256 amount) external override onlyRole(RAGEQUIT_ROLE) nonReentrant {
-        if (!fundingClosed) revert FundingNotClosed();
+        if (!fundingClosed) {
+            // Nothing has streamed yet, so the module's pro-rata payout equals
+            // the burned shares. Treat the exit as a withdrawn deposit: the
+            // raise shrinks and no stream or Rule 2 state is involved.
+            totalDeposited -= amount;
+            (bool refunded,) = holder.call{value: amount}("");
+            if (!refunded) revert TransferFailed();
+            return;
+        }
 
         uint256 balanceBeforeExit = unreleasedBalance();
         totalExitedViaRageQuit += amount;
@@ -258,12 +316,9 @@ contract LAFVault is ILAFVault, AccessControl, ReentrancyGuard {
         cumulativeRageQuitInWindow += amount;
         rageQuitByDay[block.timestamp / 1 days] += amount;
 
-        // Transfer funds to holder
-        (bool ok,) = holder.call{value: amount}("");
-        if (!ok) revert TransferFailed();
-
         // Rule 2: use the last 30 days at all times, including before the
-        // first checkpoint and after a checkpoint has resolved.
+        // first checkpoint and after a checkpoint has resolved. Applied
+        // before the transfer so a reentrant holder sees the final state.
         uint256 recentExits = recentRageQuit();
         if (
             recentExits * 10000 > balanceBeforeExit * rageQuitAutoPauseBps &&
@@ -281,6 +336,10 @@ contract LAFVault is ILAFVault, AccessControl, ReentrancyGuard {
 
             emit RageQuitThresholdBreached(recentExits, rageQuitAutoPauseBps);
         }
+
+        // Transfer funds to holder
+        (bool ok,) = holder.call{value: amount}("");
+        if (!ok) revert TransferFailed();
     }
 
     // ================================================================
@@ -374,6 +433,13 @@ contract LAFVault is ILAFVault, AccessControl, ReentrancyGuard {
         accruedAtLastRateChange = _totalStreamed();
         effectiveElapsedAtLastRateChange = _effectiveElapsed();
         lastClaimTime = block.timestamp;
+    }
+
+    /// @dev True if `module` answers checkpointInterval() (the governor does,
+    ///      the rage-quit module does not).
+    function _exposesCheckpointInterval(address module) internal view returns (bool) {
+        (bool ok, bytes memory data) = module.staticcall(abi.encodeWithSignature("checkpointInterval()"));
+        return ok && data.length == 32;
     }
 
     /// @dev Common resume logic. Accumulates paused time and clears pause state.

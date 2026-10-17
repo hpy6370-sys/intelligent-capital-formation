@@ -11,8 +11,9 @@ import {LAFVault} from "./LAFVault.sol";
  * @notice Layer 2 — Unconditional individual exit.
  *
  * Any share holder can exit at any time by burning their shares for a
- * pro-rata share of the vault's unreleased balance. This works during
- * pauses and even in terminal state (it IS the Rule 4 distribution).
+ * pro-rata share of the vault's unreleased balance. Before funding closes
+ * this returns the deposit; afterwards it works during pauses and even in
+ * terminal state (it IS the Rule 4 distribution).
  *
  * Checks-effects-interactions: burns shares first, then triggers vault payout.
  */

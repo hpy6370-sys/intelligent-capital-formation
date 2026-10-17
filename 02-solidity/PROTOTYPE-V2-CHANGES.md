@@ -1,6 +1,8 @@
 # Solidity prototype revision: governance and capital safeguards
 
-This document describes the contracts after the 2026-10-17 hardening. The
+This document describes the contracts after the 2026-10-17 hardening and the
+follow-up independent review (locked module roles, exits before funding
+close). The
 2026-09-08 walkthrough, design proposal, v5 simulation and counterfactual
 estimates describe earlier mechanisms. Their figures are not predictions for
 this revision.
@@ -83,6 +85,46 @@ The reference deployment fixes a 365-day minimum duration. The deployer/admin
 must supply a distinct team address. The initial rate remains selected when
 funding closes, within the immutable bound; publish that choice with the
 fundraising terms. See `DEPLOYMENT.md` for the command and assumptions.
+
+## Locked module roles and exits before funding close (17 October review)
+
+An independent review of PR #3 found that the admin could still grant itself
+`TEAM_ROLE`, `RAGEQUIT_ROLE` or `GOVERNOR_ROLE` after deployment, claim or
+withdraw the whole raise, or lift a Rule 2 pause. The vault and share token now
+install their modules once through `configureModules` and set the AccessControl
+admin of the team, governor, rage-quit, minter and burner roles to an
+unassigned role, so those roles can no longer be granted, revoked or rotated.
+Setup rejects modules wired to another stack, swapped governor/rage-quit
+arguments, and a token burner that the vault does not pay. Deposits and
+funding close revert until the modules are configured.
+
+Before this change, rage quit reverted until the admin closed funding, so a
+deposit could stay locked indefinitely. An exit before funding close now
+returns the deposit and reduces `totalDeposited`; the initial-rate bound uses
+the net raise. `withdrawForRageQuit` also applies Rule 2 before sending ETH.
+
+## Known limitations after the 17 October review
+
+These follow from the documented rules and are kept as design properties of
+the frozen prototype rather than changed:
+
+- Rule 2 compares 30-day exits with the unreleased balance just before the
+  latest exit. Honest team claims inside the window shrink that base, so a
+  small exit can then trigger the 60-day pause. The alarm is also skipped while
+  the vault is already paused, and it re-arms only on the next exit.
+- The snapshot is the block before whoever opens a window; there is no voting
+  delay. Votes keep their snapshot weight after the holder transfers or rage
+  quits, so exited holders can still decide a checkpoint.
+- Rage quit pays a pro-rata part of the whole unreleased balance, including
+  amounts vested to the team but not yet claimed. During a run or a pause an
+  honest team can lose its unclaimed allowance.
+- The stream rate is fixed in ETH per second. After large exits the remaining
+  pool can be released faster than the minimum duration; the bound protects
+  the original raise, not the remaining holders. Rule 4 limits the tail only
+  once someone calls `checkPoolDepletion()`.
+- `resumeStreaming()` has no caller in the current governor, so pauses end by
+  timeout through `resumeIfTimedOut()`.
+- The signal role and reporter set remain admin-controlled (`DEPLOYMENT.md`).
 
 ## Verification and next research step
 

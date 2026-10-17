@@ -72,12 +72,10 @@ abstract contract LAFTestBase is Test {
         // quorum=1, window=365d: v1-equivalent behaviour with a single reporter
         monitor = new SignalMonitor(admin, governor, 2, 1, 1, 365 days);
 
-        // Grant roles
-        vault.grantRole(vault.GOVERNOR_ROLE(), address(governor));
-        vault.grantRole(vault.GOVERNOR_ROLE(), admin); // admin can also act as governor in tests
-        vault.grantRole(vault.RAGEQUIT_ROLE(), address(rageQuit));
-        shareToken.grantRole(shareToken.MINTER_ROLE(), address(vault));
-        shareToken.grantRole(shareToken.BURNER_ROLE(), address(rageQuit));
+        // Configure value-moving roles once. Their role admins are locked.
+        vault.configureModules(address(governor), address(rageQuit));
+        shareToken.configureModules(address(vault), address(rageQuit));
+
         governor.grantRole(governor.SIGNAL_ROLE(), address(monitor));
         monitor.addReporter(reporter);
 

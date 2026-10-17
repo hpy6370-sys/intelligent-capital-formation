@@ -1,6 +1,10 @@
-# Failure Coding Codebook (Proposed)
+# Failure Coding Codebook
 
-**Status:** protocol proposal; no dataset rows have been coded with these rules.
+**Status:** applied to all 82 inventory rows on 2026-10-17 (single coder, with
+dated sources for the failed campaigns). Sections 1-5 are the protocol as
+proposed on 2026-10-03; section 6 records how it was applied. Codes are in
+`coding/row_codes.csv`; `code_inventory.py` validates them and writes the
+tables in `output/`.
 **Scope:** observable outcomes in on-chain capital formation projects and
 fundraising campaigns represented in `dataset_82_projects.md`.
 
@@ -109,3 +113,45 @@ association between mechanism and outcome needs a defined sample, comparable
 observation windows, and a treatment of confounders. Report the empirical
 failure distribution separately from the design team's counterfactual claims
 about how LAF might have changed an outcome.
+
+## 6. Application on 2026-10-17
+
+The protocol was applied to every row of `dataset_82_projects.md` with these
+concrete choices:
+
+- **Row identity.** Rows are numbered `R01`-`R82` in file order, because the
+  printed numbers repeat across sections (#15-18, #28, #42, #43, #52).
+- **Record types.** `campaign`, `platform`, `project` (uses a mechanism but has
+  no raise attributable to it), `governance_event`, `proposal`, `aggregate`.
+  Rows of one entity share an `entity_id`; `duplicate_of` marks the same raise
+  listed twice (Aavegotchi is counted under DAICO, Bancor under ICO).
+- **Eligibility.** A row is an eligible campaign only if it is a campaign, is
+  not a duplicate, and the row or its cited source shows the category's
+  mechanism was used (`mechanism_fit` yes, partial, hybrid, variant, or
+  attempted and cancelled). Casper and Mina are excluded from RDA because their
+  sources describe fixed-price sales.
+- **Amounts.** `raise_usd` holds capital raised only. Platform revenue, trading
+  volume, pool size, per-launch figures, duplicates and amounts contradicted by
+  their own source are left blank and explained in `raise_basis_note`.
+- **Outcome first.** `outcome_status` is one of active, active_diminished,
+  rebranded_or_merged (surviving), dead_inactive, halted_refunded (failed),
+  unknown or not_applicable. Surviving entries are coded `not_failed`
+  (the `none-observed` code above).
+- **Failure modes.** A failed entry receives one of the six modes only when the
+  section 3 threshold is met; `other` records a stated cause outside the six;
+  everything else is `unknown`. Proposals, aggregates and governance events
+  are `not_applicable`. `confidence` (High/Medium/Low) rates the outcome and
+  failure code together.
+- **Evidence.** Failed campaigns cite dated sources in `evidence_url` and
+  `evidence_date` (all accessed 2026-10-17); the research log is
+  `coding/research_evidence_2026-10-17.md`. Pages that could not be opened were
+  not used.
+
+Result: 59 eligible campaigns, of which 47 were surviving and 12 failed at the
+mid-2026 cutoff. Seven failures meet a code: slow death 3, regulatory shutdown 1,
+soft rug 1 and other 2; five remain unknown. No eligible campaign met the exit
+scam, governance failure or liquidity trap threshold.
+
+Limits of this application: one coder, no inter-coder agreement measure, and
+several statuses that rest on secondary or undated sources (flagged Low). The
+second-review step in section 4 remains future work.

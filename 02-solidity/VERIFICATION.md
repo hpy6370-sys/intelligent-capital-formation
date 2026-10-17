@@ -63,6 +63,15 @@ verifies the current configuration guards and minimum-vesting rate bound with
 properties (Foundry v1.8.5, solc 0.8.28, 256 fuzz runs, 128 invariant runs at
 depth 64). Its metadata records the reviewed working-tree source hash.
 
+The current record is `test-output/verification-2026-10-17-role-lock/`. It was
+run on a clean worktree of commit `bd2e7de` (locked module roles, exits before
+funding close, Rule 2 applied before the transfer): 117 tests passed, none
+failed or skipped, and the same ten invariant properties passed under the same
+toolchain and sampling settings. `test-output/gas-report-2026-10-17.txt` is a
+`forge test --gas-report` run on the same tree (non-invariant suites; 115
+tests). Its per-call figures come from test transactions, so treat them as
+indicative rather than as a deployment estimate.
+
 Passing tests demonstrate the exercised functional properties under the
 configured sampling budget. They are not a production audit, full formal
 verification, testnet deployment, or a new economic evaluation. The historical

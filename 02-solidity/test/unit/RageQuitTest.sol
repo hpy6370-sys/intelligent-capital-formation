@@ -6,11 +6,96 @@ import {RageQuitModule} from "../../src/RageQuitModule.sol";
 import {LAFVault} from "../../src/LAFVault.sol";
 import {LAFShareToken} from "../../src/LAFShareToken.sol";
 
+/// @dev Holder contract that records the vault state when its payout arrives.
+contract PauseObserver {
+    LAFVault public immutable vault;
+    RageQuitModule public immutable rageQuit;
+    bool public received;
+    bool public sawPaused;
+
+    constructor(LAFVault _vault, RageQuitModule _rageQuit) payable {
+        vault = _vault;
+        rageQuit = _rageQuit;
+    }
+
+    function deposit(uint256 amount) external {
+        vault.deposit{value: amount}();
+    }
+
+    function quit(uint256 shares) external {
+        rageQuit.rageQuit(shares);
+    }
+
+    receive() external payable {
+        received = true;
+        sawPaused = vault.paused();
+    }
+}
+
 /**
  * @title RageQuitTest
  * @notice Unit tests for RageQuitModule (Layer 2) — §7.2 of laf_solidity_design.md.
  */
 contract RageQuitTest is LAFTestBase {
+    // ================================================================
+    //                 EXIT BEFORE FUNDING CLOSES
+    // ================================================================
+
+    function test_rageQuitBeforeFundingClosesReturnsTheDeposit() public {
+        vm.prank(alice);
+        vault.deposit{value: 50 ether}();
+        vm.prank(bob);
+        vault.deposit{value: 30 ether}();
+
+        uint256 aliceBefore = alice.balance;
+        vm.prank(alice);
+        rageQuit.rageQuit(20 ether);
+
+        assertEq(alice.balance - aliceBefore, 20 ether, "exact deposit returned");
+        assertEq(vault.totalDeposited(), 60 ether, "raise shrinks");
+        assertEq(vault.totalExitedViaRageQuit(), 0, "not a post-close exit");
+        assertEq(shareToken.totalSupply(), 60 ether);
+        assertEq(vault.unreleasedBalance(), 60 ether);
+        assertEq(address(vault).balance, 60 ether);
+        assertFalse(vault.paused(), "Rule 2 does not apply before the stream");
+
+        // The initial-rate bound uses the net raise.
+        uint256 maxRate = 60 ether / (MINIMUM_VESTING_DURATION * 2);
+        vm.prank(admin);
+        vm.expectRevert(abi.encodeWithSelector(LAFVault.RateTooHigh.selector, maxRate + 1, maxRate));
+        vault.closeFunding(maxRate + 1);
+        vm.prank(admin);
+        vault.closeFunding(maxRate);
+        assertEq(vault.initialRatePerSecond(), maxRate);
+    }
+
+    function test_fullWithdrawalBeforeCloseLeavesNothingToClose() public {
+        vm.prank(alice);
+        vault.deposit{value: 10 ether}();
+        vm.prank(alice);
+        rageQuit.rageQuit(10 ether);
+
+        assertEq(vault.totalDeposited(), 0);
+        vm.prank(admin);
+        vm.expectRevert(LAFVault.NoDeposits.selector);
+        vault.closeFunding(RATE_PER_SECOND);
+    }
+
+    function test_rule2PauseIsFinalBeforeThePayoutIsSent() public {
+        PauseObserver observer = new PauseObserver{value: 40 ether}(vault, rageQuit);
+        observer.deposit(40 ether);
+        vm.prank(alice);
+        vault.deposit{value: 60 ether}();
+        vm.prank(admin);
+        vault.closeFunding(RATE_PER_SECOND);
+
+        // 30 of 100 ETH unreleased crosses the 25% alarm.
+        observer.quit(30 ether);
+        assertTrue(observer.received(), "payout delivered");
+        assertTrue(observer.sawPaused(), "pause applied before the transfer");
+        assertTrue(vault.paused());
+    }
+
     function test_constructorRejectsZeroDependencies() public {
         vm.expectRevert(RageQuitModule.ZeroAddress.selector);
         new RageQuitModule(vault, LAFShareToken(address(0)));
@@ -73,8 +158,8 @@ contract RageQuitTest is LAFTestBase {
     function test_rageQuit_availableDuringPause() public {
         _fundAndClose();
 
-        // Pause the vault (admin has GOVERNOR_ROLE from setUp)
-        vm.prank(admin);
+        // Pause the vault through its configured governor module.
+        vm.prank(address(governor));
         vault.pauseForAudit(30 days);
 
         assertTrue(vault.paused(), "Vault should be paused");

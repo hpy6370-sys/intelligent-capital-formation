@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
+import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 import {LAFTestBase} from "../LAFTestBase.sol";
 import {LAFVault} from "../../src/LAFVault.sol";
 import {LAFShareToken} from "../../src/LAFShareToken.sol";
+import {RageQuitModule} from "../../src/RageQuitModule.sol";
+import {QuadraticGovernor} from "../../src/QuadraticGovernor.sol";
 
 /**
  * @title LAFVaultTest
@@ -42,6 +45,191 @@ contract LAFVaultTest is LAFTestBase {
 
         vm.expectRevert(LAFVault.InvalidConfiguration.selector);
         new LAFVault(admin, team, shareToken, RAGE_QUIT_AUTO_PAUSE_BPS, POOL_DEPLETION_BPS, MAX_PAUSE_DURATION, 0);
+    }
+
+    function test_constructorRejectsTheSameAdminAndTeam() public {
+        vm.expectRevert(LAFVault.InvalidConfiguration.selector);
+        new LAFVault(admin, admin, shareToken, RAGE_QUIT_AUTO_PAUSE_BPS, POOL_DEPLETION_BPS, MAX_PAUSE_DURATION, MINIMUM_VESTING_DURATION);
+    }
+
+    function test_adminCannotGrantOrRevokeValueMovingRolesAfterClose() public {
+        _fundAndClose();
+        bytes32 locked = vault.LOCKED_ROLE_ADMIN();
+        bytes32 teamRole = vault.TEAM_ROLE();
+        bytes32 governorRole = vault.GOVERNOR_ROLE();
+        bytes32 rageQuitRole = vault.RAGEQUIT_ROLE();
+        assertEq(vault.getRoleAdmin(teamRole), locked);
+        assertEq(vault.getRoleAdmin(governorRole), locked);
+        assertEq(vault.getRoleAdmin(rageQuitRole), locked);
+        assertEq(vault.getRoleAdmin(locked), locked);
+        assertTrue(vault.hasRole(teamRole, team));
+        assertTrue(vault.hasRole(governorRole, address(governor)));
+        assertTrue(vault.hasRole(rageQuitRole, address(rageQuit)));
+
+        bytes memory lockedErr =
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, admin, locked);
+        vm.startPrank(admin);
+        vm.expectRevert(lockedErr);
+        vault.grantRole(teamRole, admin);
+        vm.expectRevert(lockedErr);
+        vault.grantRole(governorRole, admin);
+        vm.expectRevert(lockedErr);
+        vault.grantRole(rageQuitRole, admin);
+        vm.expectRevert(lockedErr);
+        vault.revokeRole(teamRole, team);
+        vm.expectRevert(lockedErr);
+        vault.grantRole(locked, admin);
+
+        // Without the roles the admin cannot move funds or lift a pause.
+        vm.expectRevert(abi.encodeWithSelector(
+            IAccessControl.AccessControlUnauthorizedAccount.selector, admin, rageQuitRole
+        ));
+        vault.withdrawForRageQuit(admin, 1 ether);
+        vm.expectRevert(abi.encodeWithSelector(
+            IAccessControl.AccessControlUnauthorizedAccount.selector, admin, teamRole
+        ));
+        vault.claim();
+        vm.expectRevert(abi.encodeWithSelector(
+            IAccessControl.AccessControlUnauthorizedAccount.selector, admin, governorRole
+        ));
+        vault.setStreamRate(RATE_PER_SECOND * 2);
+        vm.stopPrank();
+        assertFalse(vault.hasRole(teamRole, admin));
+    }
+
+    function test_moduleSetupRejectsSwappedModules() public {
+        (LAFShareToken freshToken, LAFVault freshVault, RageQuitModule freshRageQuit, QuadraticGovernor freshGovernor) =
+            _freshStack();
+
+        vm.prank(admin);
+        vm.expectRevert(LAFVault.InvalidModule.selector);
+        freshVault.configureModules(address(freshRageQuit), address(freshGovernor));
+
+        // The correct order still works afterwards.
+        vm.prank(admin);
+        freshVault.configureModules(address(freshGovernor), address(freshRageQuit));
+        assertTrue(freshVault.hasRole(freshVault.GOVERNOR_ROLE(), address(freshGovernor)));
+        assertTrue(freshVault.hasRole(freshVault.RAGEQUIT_ROLE(), address(freshRageQuit)));
+        assertEq(address(freshToken), address(freshVault.shareToken()));
+    }
+
+    function test_tokenBurnerMustBeTheModuleTheVaultPays() public {
+        (LAFShareToken freshToken, LAFVault freshVault, RageQuitModule freshRageQuit, QuadraticGovernor freshGovernor) =
+            _freshStack();
+        RageQuitModule otherRageQuit = new RageQuitModule(freshVault, freshToken);
+
+        // Token before vault: the vault does not pay this module yet.
+        vm.prank(admin);
+        vm.expectRevert(LAFShareToken.InvalidModule.selector);
+        freshToken.configureModules(address(freshVault), address(freshRageQuit));
+
+        vm.prank(admin);
+        freshVault.configureModules(address(freshGovernor), address(freshRageQuit));
+
+        // A second module wired to the same stack is not the one the vault pays.
+        vm.prank(admin);
+        vm.expectRevert(LAFShareToken.InvalidModule.selector);
+        freshToken.configureModules(address(freshVault), address(otherRageQuit));
+
+        vm.prank(admin);
+        freshToken.configureModules(address(freshVault), address(freshRageQuit));
+        assertTrue(freshToken.hasRole(freshToken.BURNER_ROLE(), address(freshRageQuit)));
+    }
+
+    function _freshStack()
+        internal
+        returns (LAFShareToken freshToken, LAFVault freshVault, RageQuitModule freshRageQuit, QuadraticGovernor freshGovernor)
+    {
+        freshToken = new LAFShareToken(admin);
+        freshVault = new LAFVault(
+            admin, team, freshToken,
+            RAGE_QUIT_AUTO_PAUSE_BPS,
+            POOL_DEPLETION_BPS,
+            MAX_PAUSE_DURATION,
+            MINIMUM_VESTING_DURATION
+        );
+        freshRageQuit = new RageQuitModule(freshVault, freshToken);
+        freshGovernor = new QuadraticGovernor(
+            admin, freshVault, freshToken,
+            CHECKPOINT_INTERVAL,
+            CHECKPOINT_WINDOW,
+            QUORUM_BPS,
+            MAJORITY_BPS,
+            DEFAULT_PAUSE_PERIOD,
+            SIGNAL_RATE_LIMIT
+        );
+    }
+
+    function test_adminCannotReconfigureModules() public {
+        vm.prank(admin);
+        vm.expectRevert(LAFVault.ModulesAlreadyConfigured.selector);
+        vault.configureModules(address(governor), address(rageQuit));
+    }
+
+    function test_fundingIsBlockedUntilModulesAreConfigured() public {
+        LAFShareToken freshToken = new LAFShareToken(admin);
+        LAFVault freshVault = new LAFVault(
+            admin, team, freshToken,
+            RAGE_QUIT_AUTO_PAUSE_BPS,
+            POOL_DEPLETION_BPS,
+            MAX_PAUSE_DURATION,
+            MINIMUM_VESTING_DURATION
+        );
+
+        vm.deal(alice, 1 ether);
+        vm.prank(alice);
+        vm.expectRevert(LAFVault.ModulesNotConfigured.selector);
+        freshVault.deposit{value: 1 ether}();
+
+        vm.prank(admin);
+        vm.expectRevert(LAFVault.ModulesNotConfigured.selector);
+        freshVault.closeFunding(RATE_PER_SECOND);
+    }
+
+    function test_moduleSetupRejectsContractsWiredToAnotherStack() public {
+        LAFShareToken otherToken = new LAFShareToken(admin);
+        LAFVault otherVault = new LAFVault(
+            admin, team, otherToken,
+            RAGE_QUIT_AUTO_PAUSE_BPS,
+            POOL_DEPLETION_BPS,
+            MAX_PAUSE_DURATION,
+            MINIMUM_VESTING_DURATION
+        );
+
+        vm.prank(admin);
+        vm.expectRevert(LAFVault.InvalidModule.selector);
+        otherVault.configureModules(address(governor), address(rageQuit));
+
+        vm.prank(admin);
+        vm.expectRevert(LAFShareToken.InvalidModule.selector);
+        otherToken.configureModules(address(vault), address(rageQuit));
+    }
+
+    function test_tokenAdminCannotMintBurnOrGrantSupplyRoles() public {
+        bytes32 locked = shareToken.LOCKED_ROLE_ADMIN();
+        bytes32 minterRole = shareToken.MINTER_ROLE();
+        bytes32 burnerRole = shareToken.BURNER_ROLE();
+        assertEq(shareToken.getRoleAdmin(minterRole), locked);
+        assertEq(shareToken.getRoleAdmin(burnerRole), locked);
+
+        bytes memory lockedErr =
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, admin, locked);
+        vm.startPrank(admin);
+        vm.expectRevert(lockedErr);
+        shareToken.grantRole(minterRole, admin);
+        vm.expectRevert(lockedErr);
+        shareToken.grantRole(burnerRole, admin);
+        vm.expectRevert(lockedErr);
+        shareToken.grantRole(locked, admin);
+        vm.expectRevert(abi.encodeWithSelector(
+            IAccessControl.AccessControlUnauthorizedAccount.selector, admin, minterRole
+        ));
+        shareToken.mint(admin, 1 ether);
+        vm.expectRevert(abi.encodeWithSelector(
+            IAccessControl.AccessControlUnauthorizedAccount.selector, admin, burnerRole
+        ));
+        shareToken.burn(alice, 1 ether);
+        vm.stopPrank();
     }
 
     // ================================================================
@@ -219,8 +407,8 @@ contract LAFVaultTest is LAFTestBase {
         uint256 claimed1 = vault.totalClaimedByTeam();
         assertEq(claimed1, 1 ether, "1 ETH at 0.001/sec for 1000s");
 
-        // Governor changes rate (admin has GOVERNOR_ROLE from setUp)
-        vm.prank(admin);
+        // The governor module is the only configured rate controller.
+        vm.prank(address(governor));
         vault.setStreamRate(0.002 ether);
 
         // Advance another 1000 seconds at new rate
@@ -239,7 +427,7 @@ contract LAFVaultTest is LAFTestBase {
     function test_pauseForAudit_revertsIfResponsePeriodExceedsMax() public {
         _fundAndClose();
 
-        vm.prank(admin);
+        vm.prank(address(governor));
         vm.expectRevert(
             abi.encodeWithSelector(
                 LAFVault.ResponsePeriodExceedsMax.selector,
@@ -254,8 +442,8 @@ contract LAFVaultTest is LAFTestBase {
         _fundAndClose();
         _warp(1000);
 
-        // Pause (admin has GOVERNOR_ROLE from setUp)
-        vm.prank(admin);
+        // Pause through the configured governor module.
+        vm.prank(address(governor));
         vault.pauseForAudit(30 days);
 
         assertTrue(vault.paused(), "Vault should be paused");
@@ -269,13 +457,13 @@ contract LAFVaultTest is LAFTestBase {
     function test_pauseForAudit_cannotResetAnActivePauseDeadline() public {
         _fundAndClose();
 
-        vm.prank(admin);
+        vm.prank(address(governor));
         vault.pauseForAudit(30 days);
         uint256 firstPauseAt = vault.pausedAt();
         uint256 firstPeriod = vault.pauseResponsePeriod();
 
         _warp(1 days);
-        vm.prank(admin);
+        vm.prank(address(governor));
         vm.expectRevert(LAFVault.AlreadyPaused.selector);
         vault.pauseForAudit(60 days);
 
@@ -289,13 +477,13 @@ contract LAFVaultTest is LAFTestBase {
         // Stream for 1000s
         _warp(1000);
 
-        // Pause for 5000s (admin has GOVERNOR_ROLE from setUp)
-        vm.prank(admin);
+        // Pause for 5000s through the configured governor module.
+        vm.prank(address(governor));
         vault.pauseForAudit(30 days);
         _warp(5000);
 
         // Resume
-        vm.prank(admin);
+        vm.prank(address(governor));
         vault.resumeStreaming();
 
         // Stream for another 1000s
@@ -309,7 +497,7 @@ contract LAFVaultTest is LAFTestBase {
     function test_resumeIfTimedOut_onlyAfterResponsePeriod() public {
         _fundAndClose();
 
-        vm.prank(admin);
+        vm.prank(address(governor));
         vault.pauseForAudit(30 days);
 
         // Try to resume before timeout
@@ -327,7 +515,7 @@ contract LAFVaultTest is LAFTestBase {
     function test_resumeStreaming_onlyGovernorRole() public {
         _fundAndClose();
 
-        vm.prank(admin);
+        vm.prank(address(governor));
         vault.pauseForAudit(30 days);
 
         vm.prank(alice);
@@ -396,7 +584,7 @@ contract LAFVaultTest is LAFTestBase {
 
     function test_governorCannotSetRateAboveTwiceInitialRate() public {
         _fundAndClose();
-        vm.prank(admin);
+        vm.prank(address(governor));
         vm.expectRevert(abi.encodeWithSelector(
             LAFVault.RateTooHigh.selector, RATE_PER_SECOND * 2 + 1, RATE_PER_SECOND * 2
         ));
@@ -413,7 +601,7 @@ contract LAFVaultTest is LAFTestBase {
         rageQuit.rageQuit(20 ether);
         vault.checkPoolDepletion();
 
-        vm.prank(admin);
+        vm.prank(address(governor));
         vm.expectRevert(LAFVault.VaultTerminal.selector);
         vault.setStreamRate(RATE_PER_SECOND);
         assertEq(vault.ratePerSecond(), 0);
