@@ -7,7 +7,7 @@
 > Based on the 3x3x3 scenario matrix, a detailed analysis of the 9 scenarios that Journal 2 must cover
 > Each scenario includes: setup, LAF behaviour timeline, key metrics, conclusion
 
-> Note: the timelines below assume the rolling reading of Rule 2 (design document section 8, question 3), under which the 25% threshold is measured against the current unreleased balance at any time. The shipped prototype measures it against a snapshot taken at checkpoint window open and is inactive before the first window; see `LAF-SIMULATION-NOTE.md` A8 and design finding 3.
+> Note: the timelines below assume the rolling reading of Rule 2 (design document section 8, question 3), under which the 25% threshold is measured against the current unreleased balance at any time. The 2026-09-27 prototype adopted this reading (a 30-day window against the pre-exit balance, live from funding close). The timelines still assume square-root voting and a 100 ETH/365-day stream, which the current funding-rate bound would not admit at funding close. `01-simulation/capstone_sim_v6.py` (scenarios S1-S3) models comparable cases under the current rules.
 
 ---
 

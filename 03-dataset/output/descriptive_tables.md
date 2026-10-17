@@ -59,7 +59,7 @@ The three largest raises (EOS, Telegram Open Network, Fei Protocol) make up 73% 
 ## Table 6. Evidence quality and missing data (eligible campaigns)
 | Item | Value |
 |---|---:|
-| Code confidence High / Medium / Low | 38 / 10 / 11 |
+| Code confidence High / Medium / Low | 38 / 8 / 13 |
 | Amount reported as approximate (~) | 22 |
 | No usable capital-raised figure | 1 |
 | Failed campaigns with a dated outcome source | 7 of 12 |

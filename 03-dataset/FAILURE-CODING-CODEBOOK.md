@@ -1,7 +1,7 @@
 # Failure Coding Codebook
 
-**Status:** applied to all 82 inventory rows on 2026-10-17 (single coder, with
-dated sources for the failed campaigns). Sections 1-5 are the protocol as
+**Status:** applied to all 82 inventory rows on 2026-10-17 (single coder; dated
+outcome sources for 7 of the 12 failed campaigns). Sections 1-5 are the protocol as
 proposed on 2026-10-03; section 6 records how it was applied. Codes are in
 `coding/row_codes.csv`; `code_inventory.py` validates them and writes the
 tables in `output/`.
@@ -142,8 +142,10 @@ concrete choices:
   everything else is `unknown`. Proposals, aggregates and governance events
   are `not_applicable`. `confidence` (High/Medium/Low) rates the outcome and
   failure code together.
-- **Evidence.** Failed campaigns cite dated sources in `evidence_url` and
-  `evidence_date` (all accessed 2026-10-17); the research log is
+- **Evidence.** Seven of the 12 failed campaigns cite dated outcome sources in
+  `evidence_url` and `evidence_date` (accessed 2026-10-17); HDAC (slow death)
+  and SpankChain (other) rest on the inventory text, and BIOPset, ICOVO and APY
+  Finance have no dated public source (all Low). The research log is
   `coding/research_evidence_2026-10-17.md`. Pages that could not be opened were
   not used.
 
@@ -153,5 +155,7 @@ soft rug 1 and other 2; five remain unknown. No eligible campaign met the exit
 scam, governance failure or liquidity trap threshold.
 
 Limits of this application: one coder, no inter-coder agreement measure, and
-several statuses that rest on secondary or undated sources (flagged Low). The
+several statuses that rest on secondary or undated sources (flagged Low).
+Outcome-first coding is project-level, so no mode describes a sale-stage
+failure (SKALE's cancelled auction is coded as a surviving project). The
 second-review step in section 4 remains future work.

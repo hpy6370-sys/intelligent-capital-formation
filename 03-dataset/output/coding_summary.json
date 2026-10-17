@@ -246,7 +246,7 @@
       "mechanism": "DAICO",
       "outcome": "dead_inactive",
       "failure_mode": "unknown",
-      "confidence": "Medium"
+      "confidence": "Low"
     },
     {
       "row_id": "R75",
@@ -254,7 +254,7 @@
       "mechanism": "LBP",
       "outcome": "dead_inactive",
       "failure_mode": "unknown",
-      "confidence": "Medium"
+      "confidence": "Low"
     },
     {
       "row_id": "R79",
@@ -322,8 +322,8 @@
   "evidence": {
     "confidence": {
       "High": 38,
-      "Low": 11,
-      "Medium": 10
+      "Low": 13,
+      "Medium": 8
     },
     "approximate_amounts": 22,
     "missing_amounts": 1,

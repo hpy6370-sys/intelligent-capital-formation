@@ -23,7 +23,8 @@ DEPENDENCIES = {
 
 
 def capture(args: list[str], cwd: Path = ROOT) -> str:
-    return subprocess.check_output(args, cwd=cwd, text=True, stderr=subprocess.STDOUT).strip()
+    return subprocess.check_output(args, cwd=cwd, text=True, encoding='utf-8', errors='replace',
+                                   stderr=subprocess.STDOUT).strip()
 
 
 def digest_files(files: list[Path], base: Path) -> str:
@@ -95,9 +96,12 @@ def main() -> int:
     out.mkdir(parents=True, exist_ok=True)
     env = dict(os.environ, NO_COLOR='1', FOUNDRY_DISABLE_NIGHTLY_WARNING='1')
     command = [forge, 'test', '-vv', '--fuzz-seed', SEED]
-    run = subprocess.run(command, cwd=PROJECT, env=env, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    # Decode as UTF-8 explicitly: the platform default (cp1252 on Windows) would
+    # garble Forge's output and make log_sha256 disagree with the saved file.
+    run = subprocess.run(command, cwd=PROJECT, env=env, text=True, encoding='utf-8', errors='replace',
+                         stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     log = re.sub(r'\x1b\[[0-9;]*m', '', run.stdout)
-    (out / 'forge-test.txt').write_text(log)
+    (out / 'forge-test.txt').write_bytes(log.encode('utf-8'))
     summary = re.search(r'(\d+) tests passed, (\d+) failed, (\d+) skipped \((\d+) total tests\)', log)
     counts = dict(zip(('passed', 'failed', 'skipped', 'total'), map(int, summary.groups()))) if summary else None
     invariants = sorted(set(re.findall(r'\[PASS\]\s+(invariant_\w+)(?:\(|\s|$)', log)))
@@ -123,7 +127,7 @@ def main() -> int:
         'exit_code': run.returncode, 'counts': counts, 'passing_invariants': invariants,
         'log_sha256': hashlib.sha256(log.encode()).hexdigest(), 'verified': verified,
     }
-    (out / 'metadata.json').write_text(json.dumps(metadata, indent=2) + '\n')
+    (out / 'metadata.json').write_text(json.dumps(metadata, indent=2) + '\n', encoding='utf-8')
     print(json.dumps({'verified': verified, 'counts': counts, 'invariants': len(invariants), 'output': str(out)}, indent=2))
     if not verified:
         print(log[-8000:], file=sys.stderr)

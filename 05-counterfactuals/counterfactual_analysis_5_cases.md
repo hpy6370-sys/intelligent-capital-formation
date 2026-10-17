@@ -30,6 +30,11 @@
 
 **Derivation of attributable loss**: $80M hack loss + an estimated ~$200M trapped-capital loss (Genesis participants could not exit because of the penalty mechanism and were forced to hold depreciating assets through the depeg and the hack. Conservative estimate: roughly 30-40% of the participants behind the 639K ETH attempted to exit and were penalised, at an average penalty loss of 15-20%). Note: the full compensation in 2022-09 covered the hack loss but came 5 months after the event; the capital lock-up cost and trust loss during that period are not counted.
 
+> **Erratum (2026-10-17).** The trapped-capital arithmetic above (30-40% of the
+> ~$1.3B raise penalised at 15-20%) implies about $58-104M, not ~$200M, so the
+> ~$280M base below is an upper bound; with the arithmetic as stated the base
+> is about $140-185M.
+
 **Counterfactual conclusion**: attributable loss is about $280M ($80M hack + ~$200M trapped capital). Under LAF, L2 RageQuit could release trapped capital early in the depeg, and L1 Streaming could limit Fuse exposure. Caveats: (a) the hack itself is not preventable; (b) compensation did in fact happen under the existing governance, only 5 months late; (c) for a stablecoin protocol, ragequit is equivalent to pro-rata redemption of PCV and may accelerate the depeg. Estimated reduction about 50-70% (revised down, because compensation was eventually executed).
 
 ---
