@@ -83,10 +83,8 @@ contract LAFInvariantTest is Test {
 
         // Grant roles
         vm.startPrank(admin);
-        vault.grantRole(vault.GOVERNOR_ROLE(), address(governor));
-        vault.grantRole(vault.RAGEQUIT_ROLE(), address(rageQuitModule));
-        shareToken.grantRole(shareToken.MINTER_ROLE(), address(vault));
-        shareToken.grantRole(shareToken.BURNER_ROLE(), address(rageQuitModule));
+        vault.configureModules(address(governor), address(rageQuitModule));
+        shareToken.configureModules(address(vault), address(rageQuitModule));
         governor.grantRole(governor.SIGNAL_ROLE(), address(monitor));
         vm.stopPrank();
 

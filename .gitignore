@@ -21,3 +21,6 @@ Thumbs.db
 
 # Ad-hoc verification output (dated evidence is committed separately)
 02-solidity/test-output/current/
+
+# Local working files (tool downloads, report builds, scratch analysis)
+tmp/

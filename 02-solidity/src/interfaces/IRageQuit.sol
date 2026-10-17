@@ -6,8 +6,9 @@ pragma solidity 0.8.28;
  * @notice Layer 2 — Individual Exit (Rage Quit).
  *
  * Any share holder can exit at any time, receiving their pro-rata
- * share of the vault's unreleased balance. Works during pauses
- * and even after terminal state (this IS the Rule 4 distribution).
+ * share of the vault's unreleased balance (their deposit, before funding
+ * closes). Works during pauses and even after terminal state (this IS the
+ * Rule 4 distribution).
  *
  * Burns shares before transferring funds (checks-effects-interactions).
  */

@@ -482,7 +482,7 @@ contract QuadraticGovernorTest is LAFTestBase {
         uint256 maximum = RATE_PER_SECOND * 2;
 
         // A partial increase at the ceiling must be capped, not reverted.
-        vm.prank(admin);
+        vm.prank(address(governor));
         vault.setStreamRate(maximum - 1);
         uint256 first = _unanimousCheckpoint(INCREASE_RATE);
         assertEq(uint256(_resolvedAction(first)), uint256(INCREASE_RATE));
@@ -498,7 +498,7 @@ contract QuadraticGovernorTest is LAFTestBase {
     function test_pauseVoteDuringExistingPauseResolvesWithoutExtendingDeadline() public {
         _fundAndClose();
 
-        vm.prank(admin);
+        vm.prank(address(governor));
         vault.pauseForAudit(MAX_PAUSE_DURATION);
         uint256 pauseAt = vault.pausedAt();
         uint256 pausePeriod = vault.pauseResponsePeriod();

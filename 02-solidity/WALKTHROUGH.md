@@ -1,9 +1,11 @@
 # LAF Solidity Prototype: Working Flow
 
-> Historical walkthrough of the 2026-09-08 prototype. For the current
-> 2026-09-27 governance, Rule 2 and Rule 4 semantics, read
-> `PROTOTYPE-V2-CHANGES.md` and the contracts. The steps below retain the
-> earlier sqrt-weighted vote and checkpoint-snapshot alarm for reference.
+> Historical walkthrough of the 2026-09-08 prototype. The steps below retain
+> the earlier sqrt-weighted vote, 20 % quorum, checkpoint-snapshot alarm and
+> grantRole-based setup for reference. For current behaviour read
+> `PROTOTYPE-V2-CHANGES.md` (share-weighted voting, rolling Rule 2,
+> vesting-relative Rule 4, funding-rate bound, locked module roles, exits
+> before funding close) and `DEPLOYMENT.md`.
 
 Sources: `02-solidity/`, package of 2026-09-08.
 

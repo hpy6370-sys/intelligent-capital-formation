@@ -19,8 +19,8 @@ contract DeployLAF is Script {
     function run() external {
         uint256 deployerKey = vm.envUint("PRIVATE_KEY");
         address deployer = vm.addr(deployerKey);
-        // Require an explicit team address so the development default cannot
-        // accidentally give one key both admin powers and team withdrawals.
+        // Require a distinct explicit team address. LAFVault additionally
+        // locks its value-moving roles after this stack is configured.
         address team = vm.envAddress("TEAM_ADDRESS");
         if (team == deployer) revert TeamMustDifferFromAdmin();
 
@@ -66,15 +66,10 @@ contract DeployLAF is Script {
             365 days            // reportWindow: how long a submission stays fresh
         );
 
-        // 6. Grant roles
-        // Vault: governor can pause/resume/change rate
-        vault.grantRole(vault.GOVERNOR_ROLE(), address(governor));
-        // Vault: rage quit module can withdraw for holders
-        vault.grantRole(vault.RAGEQUIT_ROLE(), address(rageQuit));
-        // Share token: vault can mint
-        shareToken.grantRole(shareToken.MINTER_ROLE(), address(vault));
-        // Share token: rage quit module can burn
-        shareToken.grantRole(shareToken.BURNER_ROLE(), address(rageQuit));
+        // 6. Install the value-moving modules once. The contracts permanently
+        // lock these role admins so the deployer cannot later add itself.
+        vault.configureModules(address(governor), address(rageQuit));
+        shareToken.configureModules(address(vault), address(rageQuit));
         // Governor: signal monitor can trigger early checkpoints
         governor.grantRole(governor.SIGNAL_ROLE(), address(monitor));
 

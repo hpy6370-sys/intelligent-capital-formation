@@ -63,6 +63,9 @@ interface ILAFVault {
     function markCheckpointWindowOpen(uint256 checkpointId) external;
 
     // ---- RageQuit actions (RAGEQUIT_ROLE) ----
+    /// @notice Pay a rage-quit exit. Before funding closes this returns the
+    ///         deposit and reduces totalDeposited; afterwards it is deducted
+    ///         from the unreleased balance and may trigger the Rule 2 pause.
     function withdrawForRageQuit(address holder, uint256 amount) external;
 
     // ---- Permissionless ----

@@ -170,7 +170,7 @@ contract CrossLayerTest is LAFTestBase {
         _fundAndClose();
 
         // Pause the vault
-        vm.prank(admin);
+        vm.prank(address(governor));
         vault.pauseForAudit(30 days);
         assertTrue(vault.paused(), "Should be paused");
 
@@ -200,7 +200,7 @@ contract CrossLayerTest is LAFTestBase {
         _warp(1000);
 
         // Governor pauses
-        vm.prank(admin);
+        vm.prank(address(governor));
         vault.pauseForAudit(30 days);
 
         assertTrue(vault.paused(), "Should be paused");
