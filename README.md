@@ -37,11 +37,11 @@ Existing on-chain fundraising mechanisms (ICO, reverse Dutch auction, bonding cu
 | Layer | Contract | Mechanism |
 |---|---|---|
 | 1 Streaming Release | `LAFVault` | Team can only `claim()` funds at a linear `ratePerSecond`; the minimum vesting duration is immutable before deposits, and the initial rate is capped so even a 2x governance increase cannot exhaust the raise faster |
-| 2 Rage Quit | `RageQuitModule` | Any share holder can exit any time, pro rata of the unreleased pool, no vote needed (works during pause and terminal state) |
+| 2 Rage Quit | `RageQuitModule` | Any share holder can exit any time, pro rata of the unreleased pool, no vote needed (works during pause and terminal state; before funding closes it returns the deposit) |
 | 3 Checkpoint Voting | `QuadraticGovernor` | First scheduled window 90 days after funding closes, then 90 days after each resolution; one 14-day window at a time. Votes on all five actions are weighted by snapshot shares; quorum is more than 50 % of snapshot supply, and the winning action needs more than 50 % of cast weight. No quorum = CONTINUE |
 | 4 Signal Monitor | `SignalMonitor` | 5 health metrics (TVL decline, active-address decline, team outflow, commit inactivity, HHI increase) with warning/critical thresholds, each reported by a registered set of up to 16 reporters; a metric only has an effective value when at least `quorum` reporters have submitted within `reportWindow`, taken as the median of those fresh submissions (v2). >=2 warnings or >=1 critical requests an early checkpoint from the Governor. It never touches the vault |
 
-Inter-layer rules (all in code, defaults in `02-solidity/script/DeployLAF.s.sol`): the deployed vault fixes a 365-day minimum vesting duration before deposits; at funding close, the admin-selected initial rate must be no more than `totalDeposited / (2 * minimumVestingDuration)`, so the governor's 2x rate cap cannot stream the full raise faster than the committed duration. Rule 2, exits during the current and previous 29 calendar days greater than 25 % of the balance immediately before the latest exit auto-pause the vault, whether a checkpoint is open or not; Rule 3, signal-triggered checkpoints are rate-limited to one per 30 days; Rule 4, a zero balance or an unreleased balance below 10 % of the amount not yet vested under the stream puts the vault in a one-way terminal state. A rate-change vote uses a fixed step of half the initial rate, and the overall rate cannot exceed twice the initial rate. Pause is bounded (30-day default response period, 60-day maximum). An active pause cannot be reset or extended by a second pause action; a passed pause vote during an existing pause preserves its original timeout.
+Inter-layer rules (all in code, defaults in `02-solidity/script/DeployLAF.s.sol`): the deployed vault fixes a 365-day minimum vesting duration before deposits; at funding close, the admin-selected initial rate must be no more than `totalDeposited / (2 * minimumVestingDuration)`, so the governor's 2x rate cap cannot stream the full raise faster than the committed duration. Rule 2, exits during the current and previous 29 calendar days greater than 25 % of the balance immediately before the latest exit auto-pause the vault, whether a checkpoint is open or not (unless it is already paused or terminal); Rule 3, signal-triggered checkpoints are rate-limited to one per 30 days; Rule 4, a zero balance or an unreleased balance below 10 % of the amount not yet vested under the stream puts the vault in a one-way terminal state once anyone calls the permissionless `checkPoolDepletion()`. A rate-change vote uses a fixed step of half the initial rate, and the overall rate cannot exceed twice the initial rate. Pause is bounded (30-day default response period, 60-day maximum). An active pause cannot be reset or extended by a second pause action; a passed pause vote during an existing pause preserves its original timeout.
 
 ## What is in each folder
 
@@ -160,17 +160,26 @@ and the revised Solidity prototype.
 and provenance for the current Solidity sources. Historical v5 simulation
 results still describe the earlier rules; passing contract tests do not
 establish revised investor recovery or project-success rates. The 17 October
-review run is retained in `02-solidity/test-output/verification-2026-10-17/`:
-106 tests passed, no tests failed or skipped, and ten invariant properties
-passed under Foundry v1.8.5 / solc 0.8.28.
+review run is retained in `02-solidity/test-output/verification-2026-10-17/`
+(106 tests). The current record, after the independent review that locked the
+module roles and opened exits before funding close, is
+`02-solidity/test-output/verification-2026-10-17-role-lock/`: 117 tests passed,
+no tests failed or skipped, and ten invariant properties passed under Foundry
+v1.8.5 / solc 0.8.28. A gas report for the same tree is in
+`02-solidity/test-output/gas-report-2026-10-17.txt`.
 
 The prototype is not an audited or production-ready fundraising system. The
-deploy script requires a team address distinct from the deployer/admin, but its
-reporter configuration remains a 1-of-1 development setting and it registers
-no reporter at deployment. A production deployment would need an independently
+deploy script requires a team address distinct from the deployer/admin, and the
+vault and share token lock their value-moving roles after a one-time module
+setup, so the admin cannot later grant itself team, rage-quit, governor, mint
+or burn rights. The admin is still trusted for that setup, for closing funding
+and for the signal layer (reporter set and signal role); the reporter
+configuration remains a 1-of-1 development setting and the script registers no
+reporter at deployment. A production deployment would need an independently
 governed admin, a multi-reporter oracle setup and testnet review. The required
-environment variables and funding-rate bound are documented in
-`02-solidity/DEPLOYMENT.md`.
+environment variables, the setup checks investors should make and the
+funding-rate bound are documented in `02-solidity/DEPLOYMENT.md`; known rule
+limitations are listed in `02-solidity/PROTOTYPE-V2-CHANGES.md`.
 
 ## Not included / available on request
 
