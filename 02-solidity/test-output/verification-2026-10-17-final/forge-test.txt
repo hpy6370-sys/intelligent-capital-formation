@@ -1,0 +1,209 @@
+Compiling 71 files with Solc 0.8.28
+Solc 0.8.28 finished in 3.63s
+Compiler run successful!
+
+Ran 15 tests for test/unit/RageQuitTest.sol:RageQuitTest
+[PASS] test_constructorRejectsZeroDependencies() (gas: 7086)
+[PASS] test_fullWithdrawalBeforeCloseLeavesNothingToClose() (gas: 377138)
+[PASS] test_rageQuitAlarmRemainsActiveAfterCheckpointResolution() (gas: 1380839)
+[PASS] test_rageQuitBeforeFundingClosesReturnsTheDeposit() (gas: 719132)
+[PASS] test_rageQuitLookbackExpiresOldExits() (gas: 1332445)
+[PASS] test_rageQuit_availableDuringPause() (gas: 986229)
+[PASS] test_rageQuit_availableDuringTerminal() (gas: 1427936)
+[PASS] test_rageQuit_belowThreshold_doesNotPause() (gas: 861138)
+[PASS] test_rageQuit_crossing25PercentThreshold_autoPausesVault() (gas: 963779)
+[PASS] test_rageQuit_partialExit() (gas: 869459)
+[PASS] test_rageQuit_paysCorrectProportionalShare() (gas: 967845)
+[PASS] test_rageQuit_revertsOnInsufficientShares() (gas: 730173)
+[PASS] test_rageQuit_revertsOnZeroShares() (gas: 722769)
+[PASS] test_rageQuit_sequentialQuittersGetCorrectShare() (gas: 1170818)
+[PASS] test_rule2PauseIsFinalBeforeThePayoutIsSent() (gas: 1228873)
+Suite result: ok. 15 passed; 0 failed; 0 skipped; finished in 52.54ms (41.18ms CPU time)
+
+Ran 15 tests for test/unit/SignalMonitorTest.sol:SignalMonitorTest
+[PASS] test_addReporterBeyondMaxReverts() (gas: 1416289)
+[PASS] test_constructorRejectsZeroAdminOrGovernor() (gas: 7475)
+[PASS] test_freshnessNoPanicAtExtremes() (gas: 1150894)
+[PASS] test_medianResistsOutlier() (gas: 1248389)
+[PASS] test_quorumAboveMaxReportersReverts() (gas: 15276)
+[PASS] test_quorumTriggers() (gas: 1364073)
+[PASS] test_rawRoleMutationReverts() (gas: 349492)
+[PASS] test_removeReporterDropsSubmission() (gas: 1331980)
+[PASS] test_removeReporterExcludesOldSubmission() (gas: 908594)
+[PASS] test_singleReporterCannotTrigger() (gas: 991443)
+[PASS] test_staleSubmissionExpires() (gas: 1154780)
+[PASS] test_v1Compat() (gas: 2706130)
+[PASS] test_zeroOrImpossibleCombinatorThresholdsRevert() (gas: 10224)
+[PASS] test_zeroQuorumReverts() (gas: 9588)
+[PASS] test_zeroWindowReverts() (gas: 9543)
+Suite result: ok. 15 passed; 0 failed; 0 skipped; finished in 52.88ms (71.73ms CPU time)
+
+Ran 32 tests for test/unit/QuadraticGovernorTest.sol:QuadraticGovernorTest
+[PASS] test_checkpointCannotOpenBeforeFundingCloses() (gas: 70864)
+[PASS] test_checkpointResolutionCannotReviveTerminalVault() (gas: 1984011)
+[PASS] test_constructorAcceptsMaximumQuorumBps() (gas: 13249)
+[PASS] test_constructorRejectsUnusableTimingAndPauseSettings() (gas: 12365)
+[PASS] test_constructorRejectsZeroAdminOrDependencies() (gas: 10274)
+[PASS] test_constructorRevertsWhenMajorityBpsIsAtMaximum() (gas: 13047)
+[PASS] test_constructorRevertsWhenMajorityBpsIsBelowHalf() (gas: 13070)
+[PASS] test_constructorRevertsWhenQuorumBpsExceedsMaximum() (gas: 13048)
+[PASS] test_constructorRevertsWhenQuorumBpsIsZero() (gas: 13045)
+[PASS] test_firstWindow_requiresInterval_andIs14DaysLong() (gas: 960476)
+[PASS] test_fourPercentHolderCannotMeetQuorum() (gas: 1055889)
+[PASS] test_increaseAtRateCapStillResolves() (gas: 2063977)
+[PASS] test_initiateAuditVote_onlyOncePerWindow() (gas: 1085611)
+[PASS] test_openCheckpointWindow_revertsBeforeIntervalElapsed() (gas: 1193538)
+[PASS] test_pauseVoteDuringExistingPauseResolvesWithoutExtendingDeadline() (gas: 1515347)
+[PASS] test_rateDeltaIsFixedAndInitiatorCannotRestrictBallot() (gas: 1460749)
+[PASS] test_resolveCheckpointRoundsQuorumUp() (gas: 980347)
+[PASS] test_resolveCheckpoint_appliesEachAction() (gas: 3995725)
+[PASS] test_resolveCheckpoint_cannotExecuteTwice() (gas: 1164577)
+[PASS] test_resolveCheckpoint_defaultsToContinue_ifQuorumNotMet() (gas: 1361946)
+[PASS] test_resolveCheckpoint_pluralityBelowMajority_isContinue() (gas: 2099791)
+[PASS] test_resolveCheckpoint_revertsForUnopenedId() (gas: 920437)
+[PASS] test_scheduledWindowCannotReplaceUnresolvedWindow() (gas: 1072505)
+[PASS] test_singleFortyPercentHolderCannotReachQuorum() (gas: 1991441)
+[PASS] test_transferredSharesHaveSnapshotVotes() (gas: 1239313)
+[PASS] test_triggerEarlyCheckpoint_noOpIfWindowAlreadyOpen() (gas: 1624380)
+[PASS] test_triggerEarlyCheckpoint_onlySignalRole() (gas: 1037779)
+[PASS] test_triggerEarlyCheckpoint_rateLimitedTo1Per30Days() (gas: 1295799)
+[PASS] test_vote_oneVotePerAddressPerCheckpoint() (gas: 1595955)
+[PASS] test_vote_revertsAfterWindowClosed() (gas: 1579120)
+[PASS] test_votingWeight_isLinearBalance() (gas: 971050)
+[PASS] test_windowCloses_asContinue_ifAuditNeverInitiated() (gas: 1018312)
+Suite result: ok. 32 passed; 0 failed; 0 skipped; finished in 52.99ms (154.53ms CPU time)
+
+Ran 41 tests for test/unit/LAFVaultTest.sol:LAFVaultTest
+[PASS] testFuzz_claim_returnsExactlyStreamedAmount(uint256) (runs: 256, μ: 731526, ~: 732061)
+[PASS] test_adminCannotGrantOrRevokeValueMovingRolesAfterClose() (gas: 1016036)
+[PASS] test_adminCannotReconfigureModules() (gas: 42743)
+[PASS] test_checkPoolDepletion_noOpAboveThreshold() (gas: 740394)
+[PASS] test_checkPoolDepletion_triggersTerminalBelowThreshold() (gas: 1253676)
+[PASS] test_claim_cappedAtUnreleasedBalance() (gas: 717635)
+[PASS] test_claim_onlyTeamRole() (gas: 716479)
+[PASS] test_claim_returnsStreamedAmount() (gas: 821014)
+[PASS] test_claim_revertsAfterTerminal() (gas: 1281026)
+[PASS] test_claim_revertsBeforeFundingClosed() (gas: 274864)
+[PASS] test_closeFunding_rejectsRateAboveTheCommittedVestingLimit() (gas: 432988)
+[PASS] test_closeFunding_revertsWhenNoCapitalWasRaised() (gas: 39794)
+[PASS] test_closeFunding_revertsWhenRateIsZero() (gas: 272603)
+[PASS] test_constructorRejectsTheSameAdminAndTeam() (gas: 9969)
+[PASS] test_constructorRevertsWhenAnAuthorityOrTokenIsZero() (gas: 9768)
+[PASS] test_constructorRevertsWhenPoolDepletionBpsExceedsMaximum() (gas: 12584)
+[PASS] test_constructorRevertsWhenRageQuitAutoPauseBpsExceedsMaximum() (gas: 12606)
+[PASS] test_constructorRevertsWhenVestingOrPauseDurationIsZero() (gas: 11924)
+[PASS] test_deposit_mintsSharesProportionally() (gas: 258461)
+[PASS] test_deposit_multipleInvestors() (gas: 426183)
+[PASS] test_deposit_revertsAfterFundingClosed() (gas: 721535)
+[PASS] test_deposit_revertsOnZero() (gas: 34619)
+[PASS] test_fundingIsBlockedUntilModulesAreConfigured() (gas: 73991)
+[PASS] test_governorCannotSetRateAboveTwiceInitialRate() (gas: 726177)
+[PASS] test_invariant_balanceEqualsAccounting() (gas: 1022742)
+[PASS] test_moduleSetupRejectsContractsWiredToAnotherStack() (gas: 89192)
+[PASS] test_moduleSetupRejectsSwappedModules() (gas: 187885)
+[PASS] test_normalVestingDoesNotTriggerTerminal() (gas: 844140)
+[PASS] test_pauseForAudit_blocksClaimDuringPause() (gas: 898664)
+[PASS] test_pauseForAudit_cannotResetAnActivePauseDeadline() (gas: 869497)
+[PASS] test_pauseForAudit_excludesPausedTimeFromStream() (gas: 934358)
+[PASS] test_pauseForAudit_revertsIfResponsePeriodExceedsMax() (gas: 725047)
+[PASS] test_resumeIfTimedOut_onlyAfterResponsePeriod() (gas: 891357)
+[PASS] test_resumeStreaming_onlyGovernorRole() (gas: 830245)
+[PASS] test_setStreamRate_changesRate() (gas: 964801)
+[PASS] test_setStreamRate_onlyGovernorRole() (gas: 715711)
+[PASS] test_shareTokenConstructorRejectsZeroAdmin() (gas: 4370)
+[PASS] test_terminalCannotBeReactivatedByGovernor() (gas: 1278149)
+[PASS] test_tokenAdminCannotMintBurnOrGrantSupplyRoles() (gas: 188988)
+[PASS] test_tokenBurnerMustBeTheModuleTheVaultPays() (gas: 331101)
+[PASS] test_withdrawForRageQuit_onlyRageQuitRole() (gas: 716677)
+Suite result: ok. 41 passed; 0 failed; 0 skipped; finished in 105.07ms (117.58ms CPU time)
+
+Ran 5 tests for test/stress/StressTest.sol:StressTest
+[PASS] test_stress_bankRun() (gas: 2341153)
+[PASS] test_stress_cascade() (gas: 1793247)
+[PASS] test_stress_governanceApathy() (gas: 1615331)
+[PASS] test_stress_signalGaming() (gas: 1821893)
+[PASS] test_stress_sybilCheckpoint() (gas: 26989502)
+Suite result: ok. 5 passed; 0 failed; 0 skipped; finished in 114.90ms (107.31ms CPU time)
+
+Ran 7 tests for test/integration/CrossLayerTest.sol:CrossLayerTest
+[PASS] test_integration_governorHaltsStream_rageQuitStillAvailable() (gas: 1748873)
+[PASS] test_integration_massRageQuitCrossesThresholdDuringOpenCheckpoint() (gas: 1596289)
+[PASS] test_integration_pauseTimeoutThenAutoResume() (gas: 1053662)
+[PASS] test_integration_poolDepletionDuringActivePause() (gas: 1311821)
+[PASS] test_integration_rageQuitDuringActiveVote_doesNotBreakTally() (gas: 1676262)
+[PASS] test_integration_signalTriggersCheckpoint_thenAuditPassesAndPauses() (gas: 1950752)
+[PASS] test_integration_worstCaseMaliciousTeam() (gas: 2199645)
+Suite result: ok. 7 passed; 0 failed; 0 skipped; finished in 114.97ms (44.70ms CPU time)
+
+Ran 2 tests for test/invariant/LAFInvariant.t.sol:LAFInvariantTest
+[PASS]
+LAFInvariantTest invariants:
+[PASS] invariant_claimableBoundedByUnreleased
+[PASS] invariant_noClaimableWhenPausedOrTerminal
+[PASS] invariant_outflowNeverExceedsDeposits
+[PASS] invariant_shareSupplyBounded
+[PASS] invariant_signalFlagsBackedByQuorum
+[PASS] invariant_terminalImpliesZeroRate
+[PASS] invariant_terminalIsOneWay
+[PASS] invariant_unreleasedBalanceConsistent
+[PASS] invariant_vaultBalanceEqualsAccountingIdentity
+[PASS] invariant_vaultBalanceNonNegative
+ LAFInvariantTest invariants (runs: 128, calls: 8192, reverts: 0)
+
+╭------------+--------------------+-------+---------+----------╮
+| Contract   | Selector           | Calls | Reverts | Discards |
++==============================================================+
+| LAFHandler | checkPoolDepletion | 528   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | claim              | 585   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | closeFunding       | 516   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | deposit            | 523   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | evaluate           | 529   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | initiateAndVote    | 555   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | openCheckpoint     | 537   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | pauseForAudit      | 602   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | rageQuitAction     | 573   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | reportMetric       | 538   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | resolveCheckpoint  | 541   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | resumeIfTimedOut   | 569   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | resumeStreaming    | 513   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | toggleReporter     | 545   | 0       | 0        |
+|------------+--------------------+-------+---------+----------|
+| LAFHandler | warpForward        | 538   | 0       | 0        |
+╰------------+--------------------+-------+---------+----------╯
+
+Logs:
+  --- Call Summary ---
+  deposit:            0
+  closeFunding:       0
+  claim (succeeded):  0
+  totalClaimedByTeam: 0
+  rageQuit:           4
+  openCheckpoint:     0
+  resolveCheckpoint:  0
+  reportMetric:       7
+  evaluate:           2
+  addReporter:        2
+  removeReporter:     3
+  pauseForAudit:      1
+  resumeStreaming:     4
+  resumeIfTimedOut:   0
+  checkPoolDepletion: 2
+  warp:               1
+
+[PASS] test_handlerClaimPaysTeam() (gas: 256173)
+Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 23.78s (23.76s CPU time)
+
+Ran 7 test suites in 23.80s (24.27s CPU time): 117 tests passed, 0 failed, 0 skipped (117 total tests)
