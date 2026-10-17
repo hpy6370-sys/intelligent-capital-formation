@@ -1,0 +1,347 @@
+{
+  "rows": 82,
+  "distinct_entities": 77,
+  "record_types": {
+    "campaign": 63,
+    "platform": 12,
+    "project": 4,
+    "governance_event": 1,
+    "proposal": 1,
+    "aggregate": 1
+  },
+  "record_types_by_mechanism": {
+    "ICO": {
+      "campaign": 18
+    },
+    "RDA": {
+      "campaign": 12,
+      "platform": 2
+    },
+    "Bonding Curve": {
+      "campaign": 7,
+      "platform": 6,
+      "project": 3
+    },
+    "DAICO": {
+      "campaign": 5,
+      "platform": 2,
+      "governance_event": 1,
+      "proposal": 1,
+      "project": 1,
+      "aggregate": 1
+    },
+    "LBP": {
+      "campaign": 21,
+      "platform": 2
+    }
+  },
+  "funnel": {
+    "ICO": {
+      "rows": 18,
+      "non_campaign": 0,
+      "campaign": 18,
+      "duplicates": 0,
+      "mechanism_excluded": 0,
+      "eligible": 18
+    },
+    "RDA": {
+      "rows": 14,
+      "non_campaign": 2,
+      "campaign": 12,
+      "duplicates": 0,
+      "mechanism_excluded": 2,
+      "eligible": 10
+    },
+    "Bonding Curve": {
+      "rows": 16,
+      "non_campaign": 9,
+      "campaign": 7,
+      "duplicates": 2,
+      "mechanism_excluded": 0,
+      "eligible": 5
+    },
+    "DAICO": {
+      "rows": 11,
+      "non_campaign": 6,
+      "campaign": 5,
+      "duplicates": 0,
+      "mechanism_excluded": 0,
+      "eligible": 5
+    },
+    "LBP": {
+      "rows": 23,
+      "non_campaign": 2,
+      "campaign": 21,
+      "duplicates": 0,
+      "mechanism_excluded": 0,
+      "eligible": 21
+    },
+    "Total": {
+      "rows": 82,
+      "non_campaign": 19,
+      "campaign": 63,
+      "duplicates": 2,
+      "mechanism_excluded": 2,
+      "eligible": 59
+    }
+  },
+  "outcomes": {
+    "ICO": {
+      "n": 18,
+      "surviving": 13,
+      "failed": 5,
+      "unknown": 0,
+      "by_status": {
+        "active": 12,
+        "halted_refunded": 1,
+        "dead_inactive": 4,
+        "active_diminished": 1
+      }
+    },
+    "RDA": {
+      "n": 10,
+      "surviving": 8,
+      "failed": 2,
+      "unknown": 0,
+      "by_status": {
+        "active": 7,
+        "dead_inactive": 2,
+        "rebranded_or_merged": 1
+      }
+    },
+    "Bonding Curve": {
+      "n": 5,
+      "surviving": 3,
+      "failed": 2,
+      "unknown": 0,
+      "by_status": {
+        "dead_inactive": 2,
+        "active": 1,
+        "active_diminished": 2
+      }
+    },
+    "DAICO": {
+      "n": 5,
+      "surviving": 4,
+      "failed": 1,
+      "unknown": 0,
+      "by_status": {
+        "active_diminished": 1,
+        "active": 3,
+        "dead_inactive": 1
+      }
+    },
+    "LBP": {
+      "n": 21,
+      "surviving": 19,
+      "failed": 2,
+      "unknown": 0,
+      "by_status": {
+        "rebranded_or_merged": 3,
+        "active": 14,
+        "active_diminished": 2,
+        "dead_inactive": 2
+      }
+    },
+    "Total": {
+      "n": 59,
+      "surviving": 47,
+      "failed": 12,
+      "unknown": 0,
+      "by_status": {
+        "active": 37,
+        "halted_refunded": 1,
+        "dead_inactive": 11,
+        "active_diminished": 6,
+        "rebranded_or_merged": 4
+      }
+    }
+  },
+  "failure_modes": {
+    "exit_scam": 0,
+    "soft_rug": 1,
+    "governance_failure": 0,
+    "liquidity_trap": 0,
+    "slow_death": 3,
+    "regulatory_shutdown": 1,
+    "other": 2,
+    "unknown": 5
+  },
+  "failed_campaigns": [
+    {
+      "row_id": "R02",
+      "name": "Telegram Open Network",
+      "mechanism": "ICO",
+      "outcome": "halted_refunded",
+      "failure_mode": "regulatory_shutdown",
+      "confidence": "High"
+    },
+    {
+      "row_id": "R03",
+      "name": "HDAC (Hyundai DAC)",
+      "mechanism": "ICO",
+      "outcome": "dead_inactive",
+      "failure_mode": "slow_death",
+      "confidence": "Low"
+    },
+    {
+      "row_id": "R06",
+      "name": "Sirin Labs",
+      "mechanism": "ICO",
+      "outcome": "dead_inactive",
+      "failure_mode": "slow_death",
+      "confidence": "Low"
+    },
+    {
+      "row_id": "R08",
+      "name": "Bankera",
+      "mechanism": "ICO",
+      "outcome": "dead_inactive",
+      "failure_mode": "soft_rug",
+      "confidence": "Medium"
+    },
+    {
+      "row_id": "R14",
+      "name": "OmiseGO",
+      "mechanism": "ICO",
+      "outcome": "dead_inactive",
+      "failure_mode": "unknown",
+      "confidence": "Low"
+    },
+    {
+      "row_id": "R21",
+      "name": "Raiden Network",
+      "mechanism": "RDA",
+      "outcome": "dead_inactive",
+      "failure_mode": "slow_death",
+      "confidence": "Medium"
+    },
+    {
+      "row_id": "R32",
+      "name": "SpankChain",
+      "mechanism": "RDA",
+      "outcome": "dead_inactive",
+      "failure_mode": "other",
+      "confidence": "Low"
+    },
+    {
+      "row_id": "R33",
+      "name": "Fei Protocol",
+      "mechanism": "Bonding Curve",
+      "outcome": "dead_inactive",
+      "failure_mode": "other",
+      "confidence": "Medium"
+    },
+    {
+      "row_id": "R45",
+      "name": "BIOPset",
+      "mechanism": "Bonding Curve",
+      "outcome": "dead_inactive",
+      "failure_mode": "unknown",
+      "confidence": "Low"
+    },
+    {
+      "row_id": "R51",
+      "name": "ICOVO",
+      "mechanism": "DAICO",
+      "outcome": "dead_inactive",
+      "failure_mode": "unknown",
+      "confidence": "Medium"
+    },
+    {
+      "row_id": "R75",
+      "name": "APY Finance",
+      "mechanism": "LBP",
+      "outcome": "dead_inactive",
+      "failure_mode": "unknown",
+      "confidence": "Medium"
+    },
+    {
+      "row_id": "R79",
+      "name": "Ordibank",
+      "mechanism": "LBP",
+      "outcome": "dead_inactive",
+      "failure_mode": "unknown",
+      "confidence": "Low"
+    }
+  ],
+  "post_raise_share_of_coded": {
+    "coded": 5,
+    "post_raise": 4
+  },
+  "capital": {
+    "ICO": {
+      "n": 18,
+      "median": 103000000.0,
+      "min": 8600000.0,
+      "max": 4200000000.0,
+      "sum": 7546000000.0
+    },
+    "RDA": {
+      "n": 9,
+      "median": 12500000.0,
+      "min": 1760000.0,
+      "max": 145000000.0,
+      "sum": 298660000.0
+    },
+    "Bonding Curve": {
+      "n": 5,
+      "median": 11500000.0,
+      "min": 200000.0,
+      "max": 1300000000.0,
+      "sum": 1468200000.0
+    },
+    "DAICO": {
+      "n": 5,
+      "median": 15362418.0,
+      "min": 803390.0,
+      "max": 30000000.0,
+      "sum": 65665808.0
+    },
+    "LBP": {
+      "n": 21,
+      "median": 12260000.0,
+      "min": 547000.0,
+      "max": 139000000.0,
+      "sum": 467687000.0
+    },
+    "All eligible": {
+      "n": 58,
+      "median": 17350000.0,
+      "min": 200000.0,
+      "max": 4200000000.0,
+      "sum": 9846212808.0
+    },
+    "top3_share": 0.7312456210727067,
+    "top3_names": [
+      "EOS",
+      "Telegram Open Network",
+      "Fei Protocol"
+    ]
+  },
+  "evidence": {
+    "confidence": {
+      "High": 38,
+      "Low": 11,
+      "Medium": 10
+    },
+    "approximate_amounts": 22,
+    "missing_amounts": 1,
+    "failed_with_dated_evidence": 7
+  },
+  "daico": {
+    "rows": 11,
+    "eligible": 5,
+    "with_raise": 5
+  },
+  "duplicates": [
+    {
+      "row_id": "R36",
+      "duplicate_of": "R50"
+    },
+    {
+      "row_id": "R40",
+      "duplicate_of": "R07"
+    }
+  ]
+}
